@@ -131,8 +131,8 @@ loadJsonFileState();
     if (!client) {
       if (!localJsonHost) {
         loadSignedOutState();
-        render();
       }
+      render();
       return;
     }
     try {
@@ -143,6 +143,8 @@ loadJsonFileState();
           loadSignedOutState();
           render();
           setTimeout(function(){ toast('Sign in to load your private dashboard data.'); }, 0);
+        } else {
+          render();
         }
         return;
       }
