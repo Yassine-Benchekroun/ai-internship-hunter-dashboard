@@ -96,6 +96,28 @@ loadJsonFileState();
     });
   }
 
+  function privateEmptyState() {
+    var base = defaultState();
+    return Object.assign({}, base, {
+      opportunities: [],
+      applications: [],
+      route: 'settings',
+      connected: false,
+      connectedEmail: null,
+      emailProvider: '',
+      selected: [],
+      emailDrafts: {}
+    });
+  }
+
+  function loadSignedOutState() {
+    if (localJsonHost) {
+      loadBrowserFallback();
+    } else {
+      state = privateEmptyState();
+    }
+  }
+
   function loadBrowserFallback() {
     try {
       var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -108,7 +130,7 @@ loadJsonFileState();
   async function loadCloudState() {
     if (!client) {
       if (!localJsonHost) {
-        loadBrowserFallback();
+        loadSignedOutState();
         render();
       }
       return;
@@ -118,8 +140,9 @@ loadJsonFileState();
       cloudUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : null;
       if (!cloudUser) {
         if (!localJsonHost) {
-          loadBrowserFallback();
+          loadSignedOutState();
           render();
+          setTimeout(function(){ toast('Sign in to load your private dashboard data.'); }, 0);
         }
         return;
       }
