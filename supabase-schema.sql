@@ -30,5 +30,6 @@ create policy "Users can delete their dashboard state"
   on public.dashboard_state for delete to authenticated
   using (auth.uid() = user_id);
 
-grant select, insert, update, delete on public.dashboard_state to authenticated;
+revoke all on table public.dashboard_state from anon, authenticated;
+grant select, insert, update, delete on table public.dashboard_state to authenticated;
 
