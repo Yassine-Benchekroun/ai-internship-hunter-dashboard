@@ -218,7 +218,7 @@ loadJsonFileState();
     }
     var result = await client.auth.signInWithOtp({
       email: email,
-      options: {emailRedirectTo: window.location.href}
+      options: {emailRedirectTo: window.location.href, shouldCreateUser: false}
     });
     if (result.error) {
       toast(result.error.message || 'Could not send the sign-in link.', true);
