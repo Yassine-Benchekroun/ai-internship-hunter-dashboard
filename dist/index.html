@@ -69,7 +69,7 @@ const __aihRenderWithEmail=render;render=function(){__aihRenderWithEmail();updat
 let __jsonFileReady=false;
 function normalizeJsonState(saved){const base=defaultState();return{...base,...saved,opportunities:Array.isArray(saved.opportunities)?saved.opportunities:[],applications:Array.isArray(saved.applications)?saved.applications:[],filters:{...base.filters,...(saved.filters||{})},emailDrafts:saved.emailDrafts&&typeof saved.emailDrafts==='object'&&!Array.isArray(saved.emailDrafts)?saved.emailDrafts:{}}}
 const __aihJsonPersist=persist;persist=function(){if(!__jsonFileReady)return;fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...state,storage:'json-file'})}).catch(()=>toast('Could not save to dashboard-data.json.',true))};
-async function loadJsonFileState(){try{const response=await fetch('/api/state',{cache:'no-store'});if(!response.ok)throw new Error('JSON store unavailable');state=normalizeJsonState(await response.json());__jsonFileReady=true;localStorage.removeItem(STORAGE_KEY);render()}catch(error){__jsonFileReady=false;toast('JSON file storage is unavailable; browser-only fallback is active.',true)}}
+async function loadJsonFileState(){try{const response=await fetch('/api/state',{cache:'no-store'});if(!response.ok)throw new Error('JSON store unavailable');state=normalizeJsonState(await response.json());__jsonFileReady=true;localStorage.removeItem(STORAGE_KEY);render()}catch(error){__jsonFileReady=false;if(location.hostname==='127.0.0.1'||location.hostname==='localhost')toast('JSON file storage is unavailable; browser-only fallback is active.',true)}}
 loadJsonFileState();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
