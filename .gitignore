@@ -1,0 +1,6 @@
+data/dashboard-data.json
+.env
+.env.*
+!.env.example
+node_modules/
+
