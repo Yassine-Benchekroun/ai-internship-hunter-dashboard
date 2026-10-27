@@ -221,7 +221,11 @@ loadJsonFileState();
       options: {emailRedirectTo: window.location.href, shouldCreateUser: false}
     });
     if (result.error) {
-      toast(result.error.message || 'Could not send the sign-in link.', true);
+      var errorMessage = result.error.message || 'Could not send the sign-in link.';
+      if (String(result.error.message || '').toLowerCase().indexOf('signups not allowed') !== -1) {
+        errorMessage = 'This Supabase account exists but is not confirmed yet. Temporarily enable “Allow new users to sign up” in Supabase Auth, request the link again, confirm the email, then turn that setting off again.';
+      }
+      toast(errorMessage, true);
       return;
     }
     closeModal();
