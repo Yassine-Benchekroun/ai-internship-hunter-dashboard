@@ -236,6 +236,8 @@
     return html.replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + '</div>' + marker);
   }
 
+  // This is the single authoritative Settings renderer. index.html keeps only
+  // an empty compatibility placeholder until this enhancement layer loads.
   function settingsHTMLPhase2() {
     ensurePhase2State();
     var identity = state.connectedEmail || '';

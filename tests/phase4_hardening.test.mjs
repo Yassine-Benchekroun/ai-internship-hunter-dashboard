@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const bridge = await readFile(new URL('../dist/opportunity-records-bridge.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
+const phase2 = await readFile(new URL('../dist/phase2-ui.js', import.meta.url), 'utf8');
 const workflow = await readFile(new URL('../.github/workflows/deploy-pages.yml', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20261028230000_phase4_browser_contract_hardening.sql', import.meta.url), 'utf8');
 const phase3Migration = await readFile(new URL('../supabase/migrations/20261028210000_phase3_secure_automation_interfaces.sql', import.meta.url), 'utf8');
@@ -34,4 +35,10 @@ test('Pages deployment is gated by verification', () => {
   assert.match(workflow, /needs: verify/);
   assert.match(workflow, /node --test tests\/\*\.test\.mjs/);
   assert.match(workflow, /privileged credential/i);
+});
+
+test('Settings has one authoritative implementation', () => {
+  assert.equal((ui.match(/function settingsHTML\(/g) || []).length, 1);
+  assert.match(ui, /function settingsHTML\(\)\{return''\}/);
+  assert.match(phase2, /single authoritative Settings renderer/);
 });
