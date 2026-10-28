@@ -572,6 +572,18 @@
     });
   }
 
+  async function flushOpportunityDeleteQueue() {
+    var pendingDeletes = Array.isArray(state.cloudOpportunityDeleteQueue)
+      ? state.cloudOpportunityDeleteQueue.filter(isUuid)
+      : [];
+    if (!pendingDeletes.length) return false;
+    var deleteResult = await bridgeClient.from('opportunity_records')
+      .delete().eq('user_id', bridgeUser.id).in('id', pendingDeletes);
+    if (deleteResult.error) throw deleteResult.error;
+    state.cloudOpportunityDeleteQueue = [];
+    return true;
+  }
+
   async function loadOpportunityRecords() {
     if (!bridgeClient) return;
     var sessionResult = await bridgeClient.auth.getSession();
@@ -589,6 +601,7 @@
       state.profileFacts = [];
       state.profileSync = null;
     }
+    var opportunityQueueChanged = await flushOpportunityDeleteQueue();
     var result = await bridgeClient.from('opportunity_records').select('*').order('updated_at', { ascending: false });
     if (result.error) throw result.error;
     var rows = result.data || [];
@@ -607,6 +620,7 @@
     await loadNormalizedApplications();
     await loadNormalizedArtifacts();
     bridgeReady = true;
+    if (opportunityQueueChanged) await saveDashboardPayload();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     render();
   }
