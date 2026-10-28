@@ -41,6 +41,8 @@ These migrations create the normalized `opportunity_records` table with owner-on
 
 Phase 3 adds service-role-only RPC contracts for settings, Verified Profile Sync, opportunity ingestion, and Application Monitoring. The existing `ingest-opportunities` Edge Function source is tracked under `supabase/functions/ingest-opportunities/`; its platform JWT verification and private API-key check keep privileged writes server-side. No schedule or automatic email sender is created.
 
+The Edge Function JWT requirement is pinned in `supabase/config.toml` and must remain enabled in every deployment.
+
 The existing dashboard stores its UI state in `dashboard_state`. The normalized opportunity table is deliberately separate so scheduled writes cannot overwrite the whole dashboard JSON document. Backend-driven matching settings are mirrored to `user_settings`, and the dashboard's data-loading layer is connected to `opportunity_records`.
 
 The published static dashboard includes `dist/opportunity-records-bridge.js` and `dist/phase2-ui.js`. When the owner is signed in, it loads opportunities from `opportunity_records`, applications from `application_records`, current CV/email artifacts from `cv_versions` and `email_drafts`, profile facts/evidence from `profile_facts` and `profile_fact_evidence`, the latest sync summary from `profile_sync_runs`, and matching settings from `user_settings`. UI-only filters and demo records remain local-only and are never uploaded. Destructive opportunity/application deletes are sent through explicit persisted deletion queues; ordinary snapshot reconciliation never deletes cloud history. The UI keeps match classification separate from application status, and future automation cards remain explanatory placeholders only.

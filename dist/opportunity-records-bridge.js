@@ -121,9 +121,15 @@
     }
   }
 
+  var localSourcePrefix = 'https://local.invalid/opportunity/';
+
+  function isLocalSourcePlaceholder(value) {
+    return cleanText(value, '').toLowerCase().indexOf(localSourcePrefix) === 0;
+  }
+
   function displayUrl(value) {
     var source = cleanText(value, '');
-    if (!source) return '';
+    if (!source || isLocalSourcePlaceholder(source)) return '';
     return /^https?:\/\//i.test(source) ? source : 'https://' + source;
   }
 

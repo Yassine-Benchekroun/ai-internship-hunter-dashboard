@@ -24,10 +24,25 @@ test('opportunity reconciliation only deletes explicitly queued records', () => 
   assert.match(ui, /queueCloudApplicationDeletion/);
 });
 
+test('source-less manual records stay source-less after cloud hydration', () => {
+  assert.match(bridge, /localSourcePrefix/);
+  assert.match(bridge, /isLocalSourcePlaceholder/);
+  assert.match(bridge, /if \(!source \|\| isLocalSourcePlaceholder\(source\)\) return ''/);
+});
+
 test('profile sync enforces approved evidence sources', () => {
   assert.match(phase3Migration, /is_approved_profile_source/);
-  assert.match(migration, /profile evidence source is not approved/);
+  assert.match(phase3Migration, /profile evidence source is not approved/);
   assert.match(migration, /approved_profile_sources/);
+  assert.doesNotMatch(migration, /pg_get_functiondef|v_updated_definition/);
+});
+
+test('published inline scripts compile', () => {
+  const scripts = [...ui.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+    .map((match) => match[1])
+    .filter((source) => source.trim());
+  assert.ok(scripts.length > 0);
+  for (const source of scripts) assert.doesNotThrow(() => new Function(source));
 });
 
 test('Pages deployment is gated by verification', () => {
@@ -41,4 +56,6 @@ test('Settings has one authoritative implementation', () => {
   assert.equal((ui.match(/function settingsHTML\(/g) || []).length, 1);
   assert.match(ui, /function settingsHTML\(\)\{return''\}/);
   assert.match(phase2, /single authoritative Settings renderer/);
+  assert.doesNotMatch(ui, /function saveEmailConnection\(/);
+  assert.doesNotMatch(ui, /updateEmailIdentityUI/);
 });

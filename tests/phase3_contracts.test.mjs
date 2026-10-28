@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const migration = await readFile(new URL('../supabase/migrations/20261028210000_phase3_secure_automation_interfaces.sql', import.meta.url), 'utf8');
 const docs = await readFile(new URL('../docs/automation-contracts.md', import.meta.url), 'utf8');
 const edgeFunction = await readFile(new URL('../supabase/functions/ingest-opportunities/index.ts', import.meta.url), 'utf8');
+const functionConfig = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
 const publicFiles = await Promise.all([
   readFile(new URL('../dist/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../dist/phase2-ui.js', import.meta.url), 'utf8'),
@@ -33,6 +34,8 @@ test('Phase 3 contracts preserve history and prohibit automatic sending/scheduli
 test('the ingestion boundary requires JWT verification and a private API key', () => {
   assert.match(edgeFunction, /x-ingest-api-key/);
   assert.match(edgeFunction, /automation_ingest_opportunities/);
+  assert.match(functionConfig, /\[functions\.ingest-opportunities\]/);
+  assert.match(functionConfig, /verify_jwt\s*=\s*true/);
   assert.doesNotMatch(edgeFunction, /SUPABASE_CONFIG|sb_publishable_/i);
 });
 
