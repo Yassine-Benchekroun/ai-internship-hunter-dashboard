@@ -65,6 +65,29 @@ function saveEmailConnection(){const input=document.getElementById('connection-e
 function updateEmailIdentityUI(){const status=document.querySelector('.email-status'),hasEmail=Boolean(state.connected&&state.connectedEmail);if(status)status.innerHTML=`<span class="status-dot ${hasEmail?'connected':''}"></span><span>${hasEmail?`Connected · ${esc(state.connectedEmail)}`:'Email not connected'}</span>`;const topButton=document.querySelector('.topbar-actions .btn');if(topButton){topButton.textContent=hasEmail?'Change email':'Connect email';topButton.setAttribute('onclick','openEmailConnection()')}const card=[...document.querySelectorAll('.setting-card')].find(x=>x.querySelector('h2')?.textContent.includes('Email settings'));if(!card)return;const rows=card.querySelectorAll('.setting-row'),help=rows[0]?.querySelector('.setting-help'),button=rows[0]?.querySelector('.btn'),providerPill=rows[1]?.querySelector('.pill');if(help)help.textContent=hasEmail?`Connected as ${state.connectedEmail} via ${state.emailProvider||'selected provider'}. This local identity will be used for future reply drafts.`:'The dashboard works fully without an email connection.';if(button){button.textContent=hasEmail?'Change sender email':'Connect email';button.setAttribute('onclick','openEmailConnection()')}if(providerPill)providerPill.textContent=hasEmail?state.emailProvider||'Selected provider':'Not configured'}
 const __aihRenderWithEmail=render;render=function(){__aihRenderWithEmail();updateEmailIdentityUI()};toggleConnection=openEmailConnection;updateEmailIdentityUI();
 </script>
+<script id="owner-access-guard">
+(function(){
+  window.AIH_OWNER_USER_ID='3a419f7d-36e0-43d5-aa39-156b3177b84a';
+  window.__AIH_DEMO_PREVIEW=true;
+  function ownerSession(user){user=user||window.__AIH_OWNER_SESSION;return Boolean(user&&user.id===window.AIH_OWNER_USER_ID)}
+  function demoState(){var base=defaultState();return Object.assign({},base,{route:'overview',connected:false,connectedEmail:null,emailProvider:'',selected:[],emailDrafts:{}})}
+  function setDemoState(){var route=state&&state.route&&state.route!=='settings'?state.route:'overview';state=demoState();state.route=route;window.__AIH_OWNER_SESSION=null;window.__AIH_DEMO_PREVIEW=true;localStorage.removeItem(STORAGE_KEY)}
+  function requireOwner(){if(ownerSession())return true;toast('Demo mode is read-only. Sign in with the owner account to change data.',true);return false}
+  window.AIH_isOwnerSession=ownerSession;
+  window.AIH_setDemoState=setDemoState;
+  window.AIH_requireOwner=requireOwner;
+  var previousSidebar=sidebarHTML;
+  sidebarHTML=function(){var html=previousSidebar();if(ownerSession())return html;return html.replace(/<button[^>]*onclick="navigate\('settings'\)"[^>]*>.*?<\/button>/,'')};
+  var previousRoute=routeHTML;
+  routeHTML=function(){if(state.route==='settings'&&!ownerSession())state.route='overview';return previousRoute()};
+  var previousNavigate=navigate;
+  navigate=function(route){if(route==='settings'&&!ownerSession()){toast('Settings are restricted to the owner account.',true);return}return previousNavigate(route)};
+  var previousRender=render;
+  render=function(){if(!ownerSession())setDemoState();previousRender();if(!ownerSession()){var actions=document.querySelector('.topbar-actions');if(actions&&!document.getElementById('owner-login-btn')){var button=document.createElement('button');button.id='owner-login-btn';button.className='btn small ghost';button.textContent='Owner sign-in';button.onclick=function(){if(window.openCloudDatabaseLogin)window.openCloudDatabaseLogin()};actions.prepend(button)}}};
+  ['setThreshold','saveEmailConnection','saveEditedEmail','saveEmailVersion','saveImprovedVersion','classifyOpportunity','saveManualApplication','confirmRemoveActive','confirmDeleteHistory','confirmClearHistory','confirmDeleteApplication'].forEach(function(name){var original=window[name];if(typeof original!=='function')return;window[name]=function(){if(!requireOwner())return;return original.apply(this,arguments)}});
+  ['resetDemo','resetDashboard'].forEach(function(name){var original=window[name];if(typeof original!=='function')return;window[name]=function(){if(!requireOwner())return;original.apply(this,arguments);var confirmed=window.__confirmAction;if(typeof confirmed==='function'){window.__confirmAction=function(){window.__AIH_DEMO_PREVIEW=true;window.__AIH_SKIP_CLOUD_SYNC=true;try{return confirmed()}finally{setTimeout(function(){window.__AIH_SKIP_CLOUD_SYNC=false},0)}}}}});
+})();
+</script>
 <script>
 let __jsonFileReady=false;
 function normalizeJsonState(saved){const base=defaultState();return{...base,...saved,opportunities:Array.isArray(saved.opportunities)?saved.opportunities:[],applications:Array.isArray(saved.applications)?saved.applications:[],filters:{...base.filters,...(saved.filters||{})},emailDrafts:saved.emailDrafts&&typeof saved.emailDrafts==='object'&&!Array.isArray(saved.emailDrafts)?saved.emailDrafts:{}}}
@@ -83,6 +106,7 @@ loadJsonFileState();
     : null;
   var cloudUser = null;
   var cloudReady = false;
+  window.__AIH_OWNER_SESSION = null;
   var localJsonHost = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
 
   function normalizeCloudState(saved) {
@@ -111,11 +135,7 @@ loadJsonFileState();
   }
 
   function loadSignedOutState() {
-    if (localJsonHost) {
-      loadBrowserFallback();
-    } else {
-      state = privateEmptyState();
-    }
+    window.AIH_setDemoState();
   }
 
   function loadBrowserFallback() {
@@ -129,25 +149,24 @@ loadJsonFileState();
 
   async function loadCloudState() {
     if (!client) {
-      if (!localJsonHost) {
-        loadSignedOutState();
-      }
+      loadSignedOutState();
       render();
       return;
     }
     try {
       var sessionResult = await client.auth.getSession();
       cloudUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : null;
-      if (!cloudUser) {
-        if (!localJsonHost) {
-          loadSignedOutState();
-          render();
-          setTimeout(function(){ toast('Sign in to load your private dashboard data.'); }, 0);
-        } else {
-          render();
-        }
+      if (!cloudUser || !window.AIH_isOwnerSession(cloudUser)) {
+        window.__AIH_OWNER_SESSION = null;
+        cloudUser = null;
+        cloudReady = false;
+        loadSignedOutState();
+        render();
+        if (!localJsonHost) setTimeout(function(){ toast('Demo mode is active. Sign in with the owner account for private data and Settings.'); }, 0);
         return;
       }
+      window.__AIH_OWNER_SESSION = cloudUser;
+      window.__AIH_DEMO_PREVIEW = false;
       var result = await client.from('dashboard_state').select('payload').eq('user_id', cloudUser.id).maybeSingle();
       if (result.error) throw result.error;
       if (result.data && result.data.payload) {
@@ -178,6 +197,7 @@ loadJsonFileState();
 
   async function cloudPersist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (window.__AIH_SKIP_CLOUD_SYNC || window.__AIH_DEMO_PREVIEW) return;
     if (localJsonHost && typeof __jsonFileReady !== 'undefined' && __jsonFileReady) {
       fetch('/api/state', {
         method: 'PUT',
@@ -185,7 +205,7 @@ loadJsonFileState();
         body: JSON.stringify(Object.assign({}, state, {storage: 'json-file'}))
       }).catch(function(){ toast('Could not save to dashboard-data.json.', true); });
     }
-    if (!client || !cloudUser || !cloudReady) return;
+    if (!client || !cloudUser || !cloudReady || !window.AIH_isOwnerSession()) return;
     var result = await client.from('dashboard_state').upsert({
       user_id: cloudUser.id,
       payload: state,
@@ -241,7 +261,8 @@ loadJsonFileState();
         await client.auth.signOut();
         cloudUser = null;
         cloudReady = false;
-        loadBrowserFallback();
+        window.__AIH_OWNER_SESSION = null;
+        loadSignedOutState();
         render();
         toast('Cloud database disconnected.');
       }

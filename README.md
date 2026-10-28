@@ -17,6 +17,8 @@ Local development keeps a JSON fallback in data/dashboard-data.json. That file i
 
 The browser uses supabase-config.js with the Project URL and publishable key. Never add a secret/service_role key.
 
+Access control is owner-only. The deployed dashboard identifies the single approved Supabase user by immutable user ID; signed-out and non-owner sessions receive a read-only demo state, and Settings is available only to the owner session. Database RLS and table privileges enforce the same boundary even if somebody clones or modifies the public frontend.
+
 ## Secure opportunity ingestion
 
 The secure ingestion boundary is in:

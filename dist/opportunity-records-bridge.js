@@ -201,7 +201,8 @@
     if (!bridgeClient) return;
     var sessionResult = await bridgeClient.auth.getSession();
     bridgeUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : null;
-    if (!bridgeUser) {
+    if (!bridgeUser || !window.AIH_isOwnerSession || !window.AIH_isOwnerSession(bridgeUser)) {
+      bridgeUser = null;
       bridgeReady = false;
       return;
     }
@@ -226,7 +227,7 @@
   }
 
   async function syncOpportunityRecords() {
-    if (!bridgeClient || !bridgeUser || !bridgeReady) return;
+    if (window.__AIH_SKIP_CLOUD_SYNC || window.__AIH_DEMO_PREVIEW || !bridgeClient || !bridgeUser || !bridgeReady) return;
     var opportunities = (state.opportunities || []).filter(function (opportunity) {
       return !opportunity.demo && opportunity.org && opportunity.position;
     });
