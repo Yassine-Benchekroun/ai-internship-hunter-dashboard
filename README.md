@@ -19,27 +19,27 @@ The browser uses supabase-config.js with the Project URL and publishable key. Ne
 
 Access control is owner-only. The deployed dashboard identifies the single approved Supabase user by immutable user ID; signed-out and non-owner sessions receive a read-only demo state, and Settings is available only to the owner session. Database RLS and table privileges enforce the same boundary even if somebody clones or modifies the public frontend.
 
-## Secure opportunity ingestion
+## Supabase Phase 1 data model
 
-The secure ingestion boundary is in:
+Run `supabase-schema.sql` first, then run the migration files in timestamp order:
 
-- `supabase/migrations/202610270001_secure_opportunity_ingestion.sql`
-- `supabase/functions/ingest-opportunities/index.ts`
+1. `supabase/migrations/20261028182336_phase1_data_model.sql`
+2. `supabase/migrations/20261028182506_phase1_function_hardening.sql`
+3. `supabase/migrations/20261028184050_phase1_review_fixes.sql`
+4. `supabase/migrations/20261028184232_phase1_ingestion_history_fix.sql`
+5. `supabase/migrations/20261028184358_phase1_bridge_score_sync.sql`
+6. `supabase/migrations/20261028190000_phase1_runtime_fixes.sql`
+7. `supabase/migrations/20261028190500_phase1_score_sync_followup.sql`
 
-The migration creates a normalized `opportunity_records` table with per-user RLS, a unique deduplication key, and an ingestion audit table. Repeated submissions for the same source URL, organization, and position update the existing record instead of creating a duplicate. New records start in `New / Unreviewed` with `Needs review` status.
+These migrations create the normalized `opportunity_records` table with owner-only RLS, deterministic deduplication, independent application status, profile evidence, versioned artifacts, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
 
-The Edge Function accepts one opportunity or a batch of up to 100 opportunities. It requires an `INGEST_API_KEY`, validates domain relevance and source URLs, and uses a privileged server-side key only inside Supabase. Never put either key in GitHub Pages or browser JavaScript.
+Server-side opportunity ingestion is not included in this phase. Do not follow references to an Edge Function or migration file that are not present in this repository. Any future ingestion boundary must validate payloads server-side, use a privileged key only inside Supabase, and never expose that key in GitHub Pages or browser JavaScript.
 
-### Deploying the ingestion boundary
+The existing dashboard stores its UI state in `dashboard_state`. The normalized opportunity table is deliberately separate so scheduled writes cannot overwrite the whole dashboard JSON document. Backend-driven matching settings are mirrored to `user_settings`, and the dashboard's data-loading layer is connected to `opportunity_records`.
 
-1. Run the migration in the Supabase SQL Editor.
-2. Create the Edge Function named `ingest-opportunities` from the function folder.
-3. Add these hosted function secrets: `INGEST_API_KEY` and `INGEST_OWNER_USER_ID`. The latter is the authenticated user's Supabase UUID.
-4. Test the function with a small opportunity payload before connecting a scheduler.
+The published static dashboard includes `dist/opportunity-records-bridge.js` and `dist/phase2-ui.js`. When the owner is signed in, it loads opportunities from `opportunity_records`, profile facts/evidence from `profile_facts` and `profile_fact_evidence`, the latest sync summary from `profile_sync_runs`, mirrors matching settings to `user_settings`, and syncs opportunity edits back to the normalized table. Application drafts and UI-only state remain in `dashboard_state`; demo records remain local-only and are never uploaded. The UI keeps match classification separate from application status, and future automation cards remain explanatory placeholders only.
 
-The existing dashboard stores its UI state in `dashboard_state`. The normalized ingestion table is deliberately separate so scheduled writes cannot overwrite the whole dashboard JSON document. The dashboard's data-loading layer is connected to `opportunity_records`, so ingested rows can appear in its cards after sign-in.
-
-The published static dashboard now includes `dist/opportunity-records-bridge.js`. When a user is signed in, it loads opportunities from `opportunity_records` and syncs dashboard edits back to that table. Applications, settings, and email drafts continue to use `dashboard_state`; demo records remain local-only and are never uploaded.
+Phase 2 behavior tests can be run with `node --test tests/phase2_ui.test.mjs`.
 
 ## GitHub Pages
 

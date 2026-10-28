@@ -11,6 +11,8 @@ declare
   fact_count integer;
   docker_fact_id uuid;
   docker_status text;
+  docker_verified_at timestamptz;
+  docker_reverified_at timestamptz;
   opportunity_id uuid;
   score_opportunity_id uuid;
   duplicate_opportunity_id uuid;
@@ -25,6 +27,8 @@ declare
   score_initial integer;
   score_current integer;
   score_match integer;
+  score_active_sections text[];
+  threshold_classification text;
   ready_sent boolean;
 begin
   if not exists (select 1 from auth.users where id = owner_id) then
@@ -43,6 +47,11 @@ begin
      or public.classify_opportunity_score(68, 70) <> 'lower'
      or public.classify_opportunity_score(62, 70) <> 'lower' then
     raise exception 'Threshold classification test failed.';
+  end if;
+
+  if not has_function_privilege('authenticated', 'public.classify_opportunity_score(integer,integer)', 'EXECUTE')
+     or not has_function_privilege('authenticated', 'public.opportunity_dedupe_key(text,text,text)', 'EXECUTE') then
+    raise exception 'Authenticated trigger helper privileges are missing.';
   end if;
 
   insert into public.profile_facts (user_id, category, name, verification_status)
@@ -73,15 +82,37 @@ begin
 
   insert into public.profile_facts (user_id, category, name, verification_status)
   values (owner_id, 'technologies', 'Docker', 'verified')
+  on conflict (user_id, category, normalized_name)
+  do update set verification_status = 'verified'
   returning id into docker_fact_id;
+  select last_verified_at into docker_verified_at
+  from public.profile_facts
+  where id = docker_fact_id;
   update public.profile_facts
   set verification_status = 'source_missing'
+  where id = docker_fact_id;
+  select verification_status into docker_status
+  from public.profile_facts
+  where id = docker_fact_id;
+  if docker_status <> 'source_missing' then
+    raise exception 'Source-missing retention test failed.';
+  end if;
+  perform pg_sleep(0.01);
+  update public.profile_facts
+  set verification_status = 'verified'
+  where id = docker_fact_id;
+  select last_verified_at into docker_reverified_at
+  from public.profile_facts
   where id = docker_fact_id;
   select count(*), max(verification_status) into fact_count, docker_status
   from public.profile_facts
   where id = docker_fact_id;
-  if fact_count <> 1 or docker_status <> 'source_missing' then
-    raise exception 'Source-missing retention test failed.';
+  -- now() is stable for the surrounding rollback transaction, so equality is
+  -- valid here; separate production sync transactions receive fresh times.
+  if fact_count <> 1 or docker_status <> 'verified'
+     or docker_reverified_at is null or docker_verified_at is null
+     or docker_reverified_at < docker_verified_at then
+    raise exception 'Profile verification timestamp refresh test failed.';
   end if;
 
   -- Persisted score behavior: a bridge-style match_score-only insert fills
@@ -92,25 +123,26 @@ begin
     owner_id,
     public.opportunity_dedupe_key('https://example.com/opportunity/score', 'Phase 1 Score Org', 'AI Score Intern'),
     'Phase 1 Score Org', 'AI Score Intern', 'https://example.com/opportunity/score', 74
-  ) returning id, initial_score, current_score, match_score, classification
-  into score_opportunity_id, score_initial, score_current, score_match, current_classification;
-  if score_initial <> 74 or score_current <> 74 or score_match <> 74 or current_classification <> 'top' then
+  ) returning id, initial_score, current_score, match_score, classification, active_sections
+  into score_opportunity_id, score_initial, score_current, score_match, current_classification, score_active_sections;
+  if score_initial <> 74 or score_current <> 74 or score_match <> 74 or current_classification <> 'top'
+     or score_active_sections <> array['top']::text[] then
     raise exception 'Persisted 74-point classification test failed.';
   end if;
 
   update public.opportunity_records
   set match_score = 70
   where id = score_opportunity_id
-  returning current_score, classification into score_current, current_classification;
-  if score_current <> 70 or current_classification <> 'top' then
+  returning current_score, classification, active_sections into score_current, current_classification, score_active_sections;
+  if score_current <> 70 or current_classification <> 'top' or score_active_sections <> array['top']::text[] then
     raise exception 'Persisted 70-point classification test failed.';
   end if;
 
   update public.opportunity_records
   set match_score = 68
   where id = score_opportunity_id
-  returning current_score, classification into score_current, current_classification;
-  if score_current <> 68 or current_classification <> 'lower' then
+  returning current_score, classification, active_sections into score_current, current_classification, score_active_sections;
+  if score_current <> 68 or current_classification <> 'lower' or score_active_sections <> array['lower']::text[] then
     raise exception 'Persisted 68-point classification test failed.';
   end if;
 
@@ -120,6 +152,20 @@ begin
   returning current_score, classification into score_current, current_classification;
   if score_current <> 62 or current_classification <> 'lower' then
     raise exception 'Persisted 62-point classification test failed.';
+  end if;
+
+  insert into public.user_settings (user_id, match_threshold)
+  values (owner_id, 80)
+  on conflict (user_id) do update set match_threshold = excluded.match_threshold;
+  insert into public.opportunity_records (
+    user_id, dedupe_key, organization, position, source_url, match_score
+  ) values (
+    owner_id,
+    public.opportunity_dedupe_key('https://example.com/opportunity/threshold', 'Phase 1 Threshold Org', 'AI Threshold Intern'),
+    'Phase 1 Threshold Org', 'AI Threshold Intern', 'https://example.com/opportunity/threshold', 74
+  ) returning classification into threshold_classification;
+  if threshold_classification <> 'lower' then
+    raise exception 'Backend threshold setting was ignored.';
   end if;
 
   -- "ready" is not a sent state in the compatibility boolean.

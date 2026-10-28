@@ -132,7 +132,11 @@ begin
   new.normalized_name := public.normalize_profile_name(new.category, new.name);
   if new.verification_status = 'verified' then
     new.verified := true;
-    new.last_verified_at := coalesce(new.last_verified_at, now());
+    if tg_op = 'UPDATE' then
+      new.last_verified_at := now();
+    else
+      new.last_verified_at := coalesce(new.last_verified_at, now());
+    end if;
   elsif new.verification_status in ('needs_review', 'source_missing', 'unverified', 'rejected') then
     new.verified := false;
   end if;
@@ -180,8 +184,9 @@ begin
 end;
 $$;
 
--- These helpers are implementation details for triggers and server-side
--- ingestion. Keep them out of the public Data API surface.
+-- Keep trigger-only functions out of the public Data API surface. The pure
+-- opportunity helpers are granted to authenticated because the browser-owned
+-- opportunity trigger runs as the DML caller.
 revoke all on function public.normalize_profile_name(text, text) from public, anon, authenticated;
 revoke all on function public.normalize_opportunity_url(text) from public, anon, authenticated;
 revoke all on function public.opportunity_dedupe_key(text, text, text) from public, anon, authenticated;
@@ -189,6 +194,12 @@ revoke all on function public.classify_opportunity_score(integer, integer) from 
 revoke all on function public.set_updated_at() from public, anon, authenticated;
 revoke all on function public.prepare_profile_fact() from public, anon, authenticated;
 revoke all on function public.prepare_opportunity_record() from public, anon, authenticated;
+
+-- The opportunity trigger runs as the authenticated DML caller, so these
+-- deterministic, side-effect-free helpers must remain callable by that role.
+grant execute on function public.normalize_opportunity_url(text) to authenticated;
+grant execute on function public.opportunity_dedupe_key(text, text, text) to authenticated;
+grant execute on function public.classify_opportunity_score(integer, integer) to authenticated;
 
 -- Opportunity History. Existing columns used by the current bridge are kept;
 -- the normalized fields below are additive and are safe for future ingestion.
@@ -279,6 +290,36 @@ alter table public.opportunity_records add column if not exists summary text;
 alter table public.opportunity_records add column if not exists notes text;
 alter table public.opportunity_records add column if not exists created_at timestamptz default now();
 alter table public.opportunity_records add column if not exists updated_at timestamptz default now();
+alter table public.opportunity_records add column if not exists dedupe_key text;
+alter table public.opportunity_records add column if not exists organization text;
+alter table public.opportunity_records add column if not exists position text;
+alter table public.opportunity_records add column if not exists source_url text;
+alter table public.opportunity_records add column if not exists first_discovered_at timestamptz default now();
+alter table public.opportunity_records add column if not exists last_checked_at timestamptz default now();
+
+-- Existing deployments may already have opportunity_records. Backfill the
+-- identity key before the unique index and trigger depend on it.
+update public.opportunity_records
+set dedupe_key = public.opportunity_dedupe_key(source_url, organization, position)
+where dedupe_key is null or btrim(dedupe_key) = '';
+
+with ranked as (
+  select
+    id,
+    dedupe_key,
+    row_number() over (
+      partition by user_id, dedupe_key
+      order by first_discovered_at nulls last, id
+    ) as duplicate_rank
+  from public.opportunity_records
+)
+update public.opportunity_records as opportunities
+set dedupe_key = ranked.dedupe_key || ':legacy:' || ranked.id::text
+from ranked
+where opportunities.id = ranked.id
+  and ranked.duplicate_rank > 1;
+
+alter table public.opportunity_records alter column dedupe_key set not null;
 
 do $$
 begin
