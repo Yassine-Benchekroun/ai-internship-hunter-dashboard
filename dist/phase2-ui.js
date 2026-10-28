@@ -87,6 +87,12 @@
     toast('Classified ' + opportunity.org + ' as ' + classificationLabel(opportunity.classification) + '. Application status remains separate.');
   }
 
+  function reclassifySentOpportunities() {
+    (state.opportunities || []).forEach(function (opportunity) {
+      if (opportunity.sent) applyScoreClassification(opportunity);
+    });
+  }
+
   function profileStatus(status, verified) {
     if (status === 'verified' || verified === true) return { label: 'Verified', css: 'verified' };
     if (status === 'source_missing') return { label: 'Source Missing', css: 'source-missing' };
@@ -357,6 +363,7 @@
   window.saveSenderIdentity = saveSenderIdentity;
   window.AIH_phase2 = {
     classify: function (opportunity) { applyScoreClassification(opportunity); return opportunity; },
+    reclassifySent: reclassifySentOpportunities,
     classificationFor: classificationForOpportunity,
     classificationLabel: classificationLabel,
     profileCounts: profileCounts
@@ -376,11 +383,11 @@
     }));
     var result = saveManualApplicationOriginal(editId);
     ensurePhase2State();
-    (state.opportunities || []).forEach(function (opportunity) {
-      if (opportunity.sent && Array.isArray(opportunity.activeSections) && opportunity.activeSections.includes('new')) {
-        applyScoreClassification(opportunity);
-      }
-    });
+    // A manual sent record must still obey the score threshold, even when an
+    // older active section is stale or the opportunity was previously hidden
+    // from the active views. Classification never changes the independent
+    // application status.
+    reclassifySentOpportunities();
     var afterClassification = JSON.stringify((state.opportunities || []).map(function (opportunity) {
       return { id: opportunity.id, classification: opportunity.classification, activeSections: opportunity.activeSections, status: opportunity.status };
     }));

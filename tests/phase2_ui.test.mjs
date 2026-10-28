@@ -82,6 +82,15 @@ test('application status does not override match classification', () => {
   assert.equal(opportunity.status, 'Already Sent');
 });
 
+test('manual sent reclassification fixes stale sections without changing status', () => {
+  const { api, state } = loadPhase2();
+  state.opportunities = [{ score: 68, status: 'Already Sent', sent: true, activeSections: ['top'] }];
+  api.reclassifySent();
+  assert.equal(state.opportunities[0].classification, 'lower');
+  assert.deepEqual(state.opportunities[0].activeSections, ['lower']);
+  assert.equal(state.opportunities[0].status, 'Already Sent');
+});
+
 test('top classification makes an unsent review actionable without changing sent status', () => {
   const { api } = loadPhase2();
   const ready = { score: 74, status: 'Needs review', sent: false, activeSections: ['new'] };

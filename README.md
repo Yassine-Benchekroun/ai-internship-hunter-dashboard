@@ -31,16 +31,25 @@ Run `supabase-schema.sql` first, then run the migration files in timestamp order
 6. `supabase/migrations/20261028190000_phase1_runtime_fixes.sql`
 7. `supabase/migrations/20261028190500_phase1_score_sync_followup.sql`
 8. `supabase/migrations/20261028200000_phase2_classification_fix.sql`
+9. `supabase/migrations/20261028210000_phase3_secure_automation_interfaces.sql`
+10. `supabase/migrations/20261028210500_phase3_ingest_ambiguity_fix.sql`
+11. `supabase/migrations/20261028211000_phase3_event_conflict_fix.sql`
+12. `supabase/migrations/20261028211500_phase3_artifact_ambiguity_fix.sql`
+13. `supabase/migrations/20261028230000_phase4_browser_contract_hardening.sql`
 
 These migrations create the normalized `opportunity_records` table with owner-only RLS, deterministic deduplication, independent application status, profile evidence, versioned artifacts, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
 
-Server-side opportunity ingestion is not included in this phase. Do not follow references to an Edge Function or migration file that are not present in this repository. Any future ingestion boundary must validate payloads server-side, use a privileged key only inside Supabase, and never expose that key in GitHub Pages or browser JavaScript.
+Phase 3 adds service-role-only RPC contracts for settings, Verified Profile Sync, opportunity ingestion, and Application Monitoring. The existing `ingest-opportunities` Edge Function source is tracked under `supabase/functions/ingest-opportunities/`; its platform JWT verification and private API-key check keep privileged writes server-side. No schedule or automatic email sender is created.
 
 The existing dashboard stores its UI state in `dashboard_state`. The normalized opportunity table is deliberately separate so scheduled writes cannot overwrite the whole dashboard JSON document. Backend-driven matching settings are mirrored to `user_settings`, and the dashboard's data-loading layer is connected to `opportunity_records`.
 
-The published static dashboard includes `dist/opportunity-records-bridge.js` and `dist/phase2-ui.js`. When the owner is signed in, it loads opportunities from `opportunity_records`, profile facts/evidence from `profile_facts` and `profile_fact_evidence`, the latest sync summary from `profile_sync_runs`, mirrors matching settings to `user_settings`, and syncs opportunity edits back to the normalized table. Application drafts and UI-only state remain in `dashboard_state`; demo records remain local-only and are never uploaded. The UI keeps match classification separate from application status, and future automation cards remain explanatory placeholders only.
+The published static dashboard includes `dist/opportunity-records-bridge.js` and `dist/phase2-ui.js`. When the owner is signed in, it loads opportunities from `opportunity_records`, applications from `application_records`, current CV/email artifacts from `cv_versions` and `email_drafts`, profile facts/evidence from `profile_facts` and `profile_fact_evidence`, the latest sync summary from `profile_sync_runs`, and matching settings from `user_settings`. UI-only filters and demo records remain local-only and are never uploaded. Destructive opportunity/application deletes are sent through explicit persisted deletion queues; ordinary snapshot reconciliation never deletes cloud history. The UI keeps match classification separate from application status, and future automation cards remain explanatory placeholders only.
 
 Phase 2 behavior tests can be run with `node --test tests/phase2_ui.test.mjs`.
+
+The Phase 3 contracts and payloads are documented in `docs/automation-contracts.md`. The rollback-safe SQL contract tests are in `supabase/tests/phase3_automation_interfaces.sql` and require a privileged Supabase SQL test session.
+
+The production migration/version mapping is tracked in `docs/supabase-migration-ledger.md` because the managed migration service assigns production timestamps when migrations are applied.
 
 ## GitHub Pages
 

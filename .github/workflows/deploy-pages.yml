@@ -15,7 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the dashboard
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check server.mjs
+          node --check dist/opportunity-records-bridge.js
+          node --check dist/phase2-ui.js
+      - name: Run contract and UI tests
+        run: node --test tests/*.test.mjs
+      - name: Scan published assets for privileged credentials
+        shell: bash
+        run: |
+          if git grep -n -E 'service_role_key|supabase_secret_key|ingest_api_key|oauth[_-]?token' -- dist; then
+            echo "Privileged credential marker found in published assets."
+            exit 1
+          fi
   deploy:
+    needs: verify
     runs-on: ubuntu-latest
     environment:
       name: github-pages
