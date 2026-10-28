@@ -20,6 +20,9 @@
     state.connectedEmail = typeof state.connectedEmail === 'string' ? state.connectedEmail : '';
     state.providerConnectionStatus = state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected');
     state.emailProviderConnected = state.providerConnectionStatus === 'connected';
+    // Keep the legacy UI flag derived from the real provider state. Older
+    // dashboard payloads used `connected` for sender identity only.
+    state.connected = state.providerConnectionStatus === 'connected';
     state.emailProvider = state.emailProvider || '';
     state.domainRelevanceEnabled = state.domainRelevanceEnabled !== false;
     state.opportunityTypes = Array.isArray(state.opportunityTypes) && state.opportunityTypes.length

@@ -29,6 +29,8 @@ declare
   score_match integer;
   score_active_sections text[];
   threshold_classification text;
+  zero_classification text;
+  zero_active_sections text[];
   ready_sent boolean;
 begin
   if not exists (select 1 from auth.users where id = owner_id) then
@@ -152,6 +154,20 @@ begin
   returning current_score, classification into score_current, current_classification;
   if score_current <> 62 or current_classification <> 'lower' then
     raise exception 'Persisted 62-point classification test failed.';
+  end if;
+
+  -- A classified zero-score record, such as a manually recorded sent
+  -- application without a stored match score, follows the threshold model.
+  insert into public.opportunity_records (
+    user_id, dedupe_key, organization, position, source_url,
+    match_score, application_status, active_sections
+  ) values (
+    owner_id,
+    public.opportunity_dedupe_key('https://example.com/opportunity/zero', 'Phase 1 Zero Score Org', 'AI Zero Score Intern'),
+    'Phase 1 Zero Score Org', 'AI Zero Score Intern', 'https://example.com/opportunity/zero', 0, 'already_sent', array['lower']::text[]
+  ) returning classification, active_sections into zero_classification, zero_active_sections;
+  if zero_classification <> 'lower' or zero_active_sections <> array['lower']::text[] then
+    raise exception 'Persisted zero-score classification test failed.';
   end if;
 
   insert into public.user_settings (user_id, match_threshold)

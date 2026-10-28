@@ -11,6 +11,7 @@ function loadPhase2() {
     opportunities: [],
     profileFacts: [],
     profileSync: null,
+    connected: true,
     connectedEmail: '',
     providerConnectionStatus: 'not_connected',
     emailProviderConnected: false,
@@ -65,7 +66,7 @@ function loadPhase2() {
 
 test('score classification uses the threshold boundary', () => {
   const { api } = loadPhase2();
-  for (const [score, expected] of [[74, 'top'], [70, 'top'], [68, 'lower'], [62, 'lower']]) {
+  for (const [score, expected] of [[74, 'top'], [70, 'top'], [68, 'lower'], [62, 'lower'], [0, 'lower']]) {
     const opportunity = { score, activeSections: ['new'] };
     api.classify(opportunity);
     assert.equal(opportunity.classification, expected);
@@ -97,8 +98,14 @@ test('sender identity does not imply a provider connection', () => {
   const { saveSenderIdentity, state } = loadPhase2();
   saveSenderIdentity();
   assert.equal(state.connectedEmail, 'me@example.com');
+  assert.equal(state.connected, false);
   assert.equal(state.providerConnectionStatus, 'not_connected');
   assert.equal(state.emailProviderConnected, false);
+});
+
+test('legacy connected state follows the provider connection status', () => {
+  const { state } = loadPhase2();
+  assert.equal(state.connected, false);
 });
 
 test('profile counts distinguish verified and review-needed facts', () => {

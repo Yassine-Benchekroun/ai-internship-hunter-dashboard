@@ -293,6 +293,7 @@
         : ['internship', 'research'];
       state.providerConnectionStatus = result.data.provider_connection_status || 'not_connected';
       state.emailProviderConnected = state.providerConnectionStatus === 'connected';
+      state.connected = state.providerConnectionStatus === 'connected';
       state.connectedEmail = result.data.sender_identity_email || '';
     } else {
       var initialSettings = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id' });

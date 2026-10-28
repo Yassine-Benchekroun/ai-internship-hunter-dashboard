@@ -40,20 +40,23 @@ begin
     new.match_score := coalesce(new.current_score, new.initial_score, 0);
   end if;
 
+  if new.active_sections is null then
+    new.active_sections := array['new']::text[];
+  end if;
+
   threshold := coalesce(
     (select settings.match_threshold from public.user_settings settings where settings.user_id = new.user_id),
     70
   );
-  if coalesce(new.current_score, 0) > 0 then
-    calculated_classification := public.classify_opportunity_score(new.current_score, threshold);
-  else
+  if new.active_sections @> array['new']::text[] then
+    -- A record remains unreviewed only while it is still in New. Once it has
+    -- been classified, even a zero score follows the threshold model.
     calculated_classification := 'new';
+  else
+    calculated_classification := public.classify_opportunity_score(new.current_score, threshold);
   end if;
   new.classification := calculated_classification;
 
-  if new.active_sections is null then
-    new.active_sections := array['new']::text[];
-  end if;
   if tg_op = 'INSERT' and new.active_sections = array['new']::text[] then
     new.active_sections := array[calculated_classification]::text[];
   elsif tg_op = 'UPDATE' then

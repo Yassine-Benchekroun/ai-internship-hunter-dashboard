@@ -30,6 +30,7 @@ Run `supabase-schema.sql` first, then run the migration files in timestamp order
 5. `supabase/migrations/20261028184358_phase1_bridge_score_sync.sql`
 6. `supabase/migrations/20261028190000_phase1_runtime_fixes.sql`
 7. `supabase/migrations/20261028190500_phase1_score_sync_followup.sql`
+8. `supabase/migrations/20261028200000_phase2_classification_fix.sql`
 
 These migrations create the normalized `opportunity_records` table with owner-only RLS, deterministic deduplication, independent application status, profile evidence, versioned artifacts, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
 
