@@ -23,21 +23,28 @@ begin
   insert into public.user_settings (user_id, match_threshold)
   values (v_user_id, 70)
   on conflict (user_id) do update set match_threshold = 70;
+  update public.user_settings
+  set approved_profile_sources = jsonb_build_array(jsonb_build_object(
+    'source_type', 'github',
+    'source_name', 'phase3-test',
+    'source_url', 'https://github.com/phase3-test'
+  ))
+  where user_id = v_user_id;
 
   -- Profile normalization, new facts, evidence, and source_missing retention.
   v_result := public.automation_sync_profile(jsonb_build_object(
     'user_id', v_user_id,
     'status', 'completed',
-    'sources_checked', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'test', 'source_url', 'https://github.com/Yassine-Benchekroun')),
+    'sources_checked', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'phase3-test', 'source_url', 'https://github.com/phase3-test')),
     'facts', jsonb_build_array(
-      jsonb_build_object('category', 'skill', 'name', 'Python', 'verification_status', 'verified', 'evidence', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'test', 'source_url', 'https://github.com/Yassine-Benchekroun', 'evidence', 'Python evidence'))),
+      jsonb_build_object('category', 'skill', 'name', 'Python', 'verification_status', 'verified', 'evidence', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'phase3-test', 'source_url', 'https://github.com/phase3-test', 'evidence', 'Python evidence'))),
       jsonb_build_object('category', 'skills', 'name', 'python', 'verification_status', 'verified'),
       jsonb_build_object('category', 'skill', 'name', 'Docker', 'verification_status', 'verified')
     )
   ));
   select count(*) into v_count from public.profile_facts where user_id = v_user_id and category = 'skill' and normalized_name = 'python';
   if v_count <> 1 then raise exception 'duplicate profile fact test failed'; end if;
-  select count(*) into v_count from public.profile_fact_evidence where user_id = v_user_id and source_name = 'test';
+  select count(*) into v_count from public.profile_fact_evidence where user_id = v_user_id and source_name = 'phase3-test';
   if v_count <> 1 then raise exception 'profile evidence test failed'; end if;
 
   v_result := public.automation_sync_profile(jsonb_build_object(

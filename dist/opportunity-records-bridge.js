@@ -8,9 +8,16 @@
     : null);
   var bridgeUser = null;
   var bridgeReady = false;
+  var bridgeLoadToken = 0;
   var knownOpportunityIds = new Set();
   var syncQueue = Promise.resolve();
   var priorPersist = window.persist;
+
+  window.AIH_invalidatePrivateLoads = function () {
+    bridgeLoadToken += 1;
+    bridgeUser = null;
+    bridgeReady = false;
+  };
 
   function isUuid(value) {
     return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -475,7 +482,9 @@
         ? state.opportunityTypes
         : ['internship', 'research'],
       sender_identity_email: state.connectedEmail || null,
-      provider_connection_status: state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected')
+      // Step 3 has no provider OAuth integration. A saved sender identity is
+      // never evidence that Gmail or another provider is authorized.
+      provider_connection_status: 'not_connected'
     };
   }
 
@@ -505,16 +514,23 @@
     if (result.data) {
       state.threshold = result.data.match_threshold;
       state.qualityTarget = result.data.daily_opportunity_target;
+      state.approvedProfileSources = Array.isArray(result.data.approved_profile_sources)
+        ? result.data.approved_profile_sources
+        : [];
       state.countries = Array.isArray(result.data.target_countries) ? result.data.target_countries : state.countries;
       state.domainRelevanceEnabled = result.data.domain_relevance_enabled !== false;
       state.opportunityTypes = Array.isArray(result.data.opportunity_types) && result.data.opportunity_types.length
         ? result.data.opportunity_types
         : ['internship', 'research'];
-      state.providerConnectionStatus = result.data.provider_connection_status || 'not_connected';
-      state.emailProviderConnected = state.providerConnectionStatus === 'connected';
-      state.connected = state.providerConnectionStatus === 'connected';
+      // Provider state must come from a real provider authorization flow. No
+      // such flow exists in this dashboard yet, so legacy persisted flags are
+      // deliberately ignored and normalized to disconnected.
+      state.providerConnectionStatus = 'not_connected';
+      state.emailProviderConnected = false;
+      state.connected = false;
       state.connectedEmail = result.data.sender_identity_email || '';
     } else {
+      state.approvedProfileSources = [];
       var initialSettings = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id' });
       if (initialSettings.error) throw initialSettings.error;
     }
@@ -591,8 +607,10 @@
   }
 
   async function loadOpportunityRecords() {
+    var loadToken = ++bridgeLoadToken;
     if (!bridgeClient) return;
     var sessionResult = await bridgeClient.auth.getSession();
+    if (loadToken !== bridgeLoadToken) return;
     bridgeUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : null;
     if (!bridgeUser || !window.AIH_isAuthenticatedSession || !window.AIH_isAuthenticatedSession(bridgeUser)) {
       bridgeUser = null;
@@ -601,6 +619,7 @@
       return;
     }
     await loadUserSettings();
+    if (loadToken !== bridgeLoadToken) return;
     try {
       await loadProfileRegistry();
     } catch (error) {
@@ -611,6 +630,7 @@
     var opportunityQueueChanged = await flushOpportunityDeleteQueue();
     var result = await bridgeClient.from('opportunity_records').select('*').order('updated_at', { ascending: false });
     if (result.error) throw result.error;
+    if (loadToken !== bridgeLoadToken) return;
     var rows = result.data || [];
     if (!rows.length) {
       var legacy = (state.opportunities || []).filter(function (opportunity) {
@@ -626,9 +646,9 @@
     state.opportunities = rows.map(rowToOpportunity).concat(demoRows);
     await loadNormalizedApplications();
     await loadNormalizedArtifacts();
+    if (loadToken !== bridgeLoadToken) return;
     bridgeReady = true;
     if (opportunityQueueChanged) await saveDashboardPayload();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     render();
   }
 
@@ -688,7 +708,11 @@
   }
 
   if (bridgeClient) {
-    bridgeClient.auth.onAuthStateChange(function () {
+    bridgeClient.auth.onAuthStateChange(function (event, session) {
+      bridgeLoadToken += 1;
+      bridgeUser = null;
+      bridgeReady = false;
+      if (window.AIH_privateSessionEvent) window.AIH_privateSessionEvent(event, session);
       scheduleLoad(250);
     });
     // Let the existing dashboard_state loader finish before replacing its

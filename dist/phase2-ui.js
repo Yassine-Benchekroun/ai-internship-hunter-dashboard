@@ -18,11 +18,11 @@
     state.profileFacts = Array.isArray(state.profileFacts) ? state.profileFacts : [];
     state.profileSync = state.profileSync && typeof state.profileSync === 'object' ? state.profileSync : null;
     state.connectedEmail = typeof state.connectedEmail === 'string' ? state.connectedEmail : '';
-    state.providerConnectionStatus = state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected');
-    state.emailProviderConnected = state.providerConnectionStatus === 'connected';
-    // Keep the legacy UI flag derived from the real provider state. Older
-    // dashboard payloads used `connected` for sender identity only.
-    state.connected = state.providerConnectionStatus === 'connected';
+    // Step 3 has no Gmail/provider OAuth flow. A saved sender identity or a
+    // legacy persisted flag must never make the UI claim provider access.
+    state.providerConnectionStatus = 'not_connected';
+    state.emailProviderConnected = false;
+    state.connected = false;
     state.emailProvider = state.emailProvider || '';
     state.domainRelevanceEnabled = state.domainRelevanceEnabled !== false;
     state.opportunityTypes = Array.isArray(state.opportunityTypes) && state.opportunityTypes.length
@@ -198,7 +198,10 @@
     try {
       var url = new URL(String(value));
       var hostname = url.hostname.toLowerCase();
-      var approvedHost = hostname === 'github.com' || hostname.endsWith('.github.com') || hostname === 'yassine-benchekroun.github.io';
+      var approvedHosts = (Array.isArray(state.approvedProfileSources) ? state.approvedProfileSources : []).map(function (source) {
+        try { return new URL(String(source && source.source_url || '')).hostname.toLowerCase(); } catch (error) { return ''; }
+      }).filter(Boolean);
+      var approvedHost = approvedHosts.some(function (host) { return hostname === host || hostname.endsWith('.' + host); });
       return url.protocol === 'https:' && approvedHost ? url.href : '';
     } catch (error) {
       return '';
@@ -211,17 +214,17 @@
   }
 
   function profileCategoryCard(title, facts) {
-    return '<div class="profile-card phase2-profile-card"><div class="phase2-category-head"><h3>' + esc(title) + '</h3><span class="pill cyan">' + facts.length + '</span></div>' + (facts.length ? '<div class="profile-items">' + facts.map(profileFactHTML).join('') + '</div>' : '<div class="phase2-empty-fact">No Supabase profile facts recorded yet.</div>') + '</div>';
+    return '<div class="profile-card phase2-profile-card"><div class="phase2-category-head"><h3>' + esc(title) + '</h3><span class="pill cyan">' + facts.length + '</span></div>' + (facts.length ? '<div class="profile-items">' + facts.map(profileFactHTML).join('') + '</div>' : '<div class="phase2-empty-fact">No verified profile facts recorded yet.</div>') + '</div>';
   }
 
   function profileHTMLPhase2() {
     ensurePhase2State();
     var grouped = profileFactsByCategory();
     var demoMode = !window.__AIH_AUTHENTICATED_SESSION;
-    return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', '<a class="btn ghost" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">' + icon('external') + ' Open GitHub</a>') +
+    return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', '') +
       (demoMode ? '<div class="notice phase2-demo-notice"><strong>DEMO DATA</strong> · This signed-out preview is not connected to the private profile registry. Empty categories are intentional; no demo fact is presented as verified.</div>' : '') +
       profileSyncHTML() +
-      '<div class="source-banner"><div><h3>Approved sources</h3><div class="panel-kicker">Only GitHub and Portfolio evidence may add profile facts.</div></div><div class="source-links"><a class="source-link" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">GitHub</a><a class="source-link" href="https://yassine-benchekroun.github.io" target="_blank" rel="noopener">Portfolio</a></div></div>' +
+      '<div class="source-banner"><div><h3>Approved sources</h3><div class="panel-kicker">Only configured user-owned sources may add profile facts.</div></div><div class="source-links"><span class="muted">Loading configured sources…</span></div></div>' +
       '<div class="profile-grid phase2-profile-grid">' + profileCategories.map(function (item) { return profileCategoryCard(item[1], grouped[item[0]] || []); }).join('') + '</div>';
   }
 

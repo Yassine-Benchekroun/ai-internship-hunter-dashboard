@@ -29,6 +29,7 @@ jobs:
           node --check server.mjs
           node --check dist/opportunity-records-bridge.js
           node --check dist/phase2-ui.js
+          node --check dist/step3-session.js
       - name: Run contract and UI tests
         run: node --test tests/*.test.mjs
       - name: Scan published assets for privileged credentials
