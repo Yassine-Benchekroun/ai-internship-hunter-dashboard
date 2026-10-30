@@ -61,7 +61,7 @@ Payload shape:
   "completed_at": "2026-10-28T07:00:04Z",
   "status": "completed",
   "sources_checked": [
-    {"source_type": "github", "source_name": "configured-profile-source", "source_url": "#"}
+    {"source_type": "github", "source_name": "Yassine-Benchekroun", "source_url": "https://github.com/Yassine-Benchekroun"}
   ],
   "facts": [
     {
@@ -72,8 +72,8 @@ Payload shape:
       "evidence": [
         {
           "source_type": "github",
-          "source_name": "configured-profile-source",
-          "source_url": "#",
+          "source_name": "Yassine-Benchekroun",
+          "source_url": "https://github.com/Yassine-Benchekroun",
           "evidence": "Source excerpt or locator"
         }
       ]

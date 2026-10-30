@@ -22,7 +22,7 @@ as $$
   with configured as (
     select coalesce(
       (select approved_profile_sources from public.user_settings where user_id = p_user_id),
-      '[]'::jsonb
+      '[{"source_type":"github","source_name":"Yassine-Benchekroun","source_url":"https://github.com/Yassine-Benchekroun"},{"source_type":"portfolio","source_name":"Yassine Benchekroun Portfolio","source_url":"https://yassine-benchekroun.github.io"}]'::jsonb
     ) as sources
   )
   select exists (

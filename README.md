@@ -6,7 +6,7 @@ Verified-first AI internship and research opportunity dashboard with opportunity
 
 Run `node server.mjs` and open http://127.0.0.1:4173/.
 
-The local server is static-only. It does not expose a shared JSON state API; private records are loaded and saved through owner-scoped Supabase tables after authentication.
+Local development keeps a JSON fallback in data/dashboard-data.json. That file is ignored by Git so personal dashboard data is not committed to a public repository.
 
 ## Supabase setup
 
@@ -15,9 +15,9 @@ The local server is static-only. It does not expose a shared JSON state API; pri
 3. Add the deployed GitHub Pages URL to the allowed redirect URLs.
 4. Use the dashboard cloud sign-in button to receive a magic link.
 
-The browser uses supabase-config.js with the Project URL and publishable key. Never add a secret/service_role key. A sender email saved for drafts is not a Gmail/provider connection; this build has no provider OAuth flow and always reports the provider as disconnected.
+The browser uses supabase-config.js with the Project URL and publishable key. Never add a secret/service_role key.
 
-Access control is per-user. Each authenticated Supabase user gets a workspace keyed by their immutable `auth.users.id`; signed-out sessions receive an empty state, and no email string is used as an authorization boundary. Database RLS and table privileges enforce the same boundary even if somebody clones or modifies the public frontend.
+Access control is owner-only. The deployed dashboard identifies the single approved Supabase user by immutable user ID; signed-out and non-owner sessions receive a read-only demo state, and Settings is available only to the owner session. Database RLS and table privileges enforce the same boundary even if somebody clones or modifies the public frontend.
 
 ## Supabase Phase 1 data model
 
@@ -36,10 +36,8 @@ Run `supabase-schema.sql` first, then run the migration files in timestamp order
 11. `supabase/migrations/20261028211000_phase3_event_conflict_fix.sql`
 12. `supabase/migrations/20261028211500_phase3_artifact_ambiguity_fix.sql`
 13. `supabase/migrations/20261028230000_phase4_browser_contract_hardening.sql`
-14. `supabase/migrations/20261029220000_step1_auth_ownership_foundation.sql`
-15. `supabase/migrations/20261030200000_step2_privacy_hardening.sql`
 
-These migrations create the normalized `opportunity_records` table with per-user RLS, deterministic deduplication, independent application status, profile evidence, versioned artifacts, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
+These migrations create the normalized `opportunity_records` table with owner-only RLS, deterministic deduplication, independent application status, profile evidence, versioned artifacts, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
 
 Phase 3 adds service-role-only RPC contracts for settings, Verified Profile Sync, opportunity ingestion, and Application Monitoring. The existing `ingest-opportunities` Edge Function source is tracked under `supabase/functions/ingest-opportunities/`; its platform JWT verification and private API-key check keep privileged writes server-side. No schedule or automatic email sender is created.
 
@@ -47,19 +45,13 @@ The Edge Function JWT requirement is pinned in `supabase/config.toml` and must r
 
 The existing dashboard stores its UI state in `dashboard_state`. The normalized opportunity table is deliberately separate so scheduled writes cannot overwrite the whole dashboard JSON document. Backend-driven matching settings are mirrored to `user_settings`, and the dashboard's data-loading layer is connected to `opportunity_records`.
 
-The published static dashboard includes `dist/opportunity-records-bridge.js` and `dist/phase2-ui.js`. When an authenticated user is signed in, it loads that user's opportunities from `opportunity_records`, applications from `application_records`, current CV/email artifacts from `cv_versions` and `email_drafts`, profile facts/evidence from `profile_facts` and `profile_fact_evidence`, the latest sync summary from `profile_sync_runs`, and matching settings from `user_settings`. UI-only filters and demo records remain local-only and are never uploaded. Destructive opportunity/application deletes are sent through explicit persisted deletion queues; ordinary snapshot reconciliation never deletes cloud history. The UI keeps match classification separate from application status, and future automation cards remain explanatory placeholders only.
+The published static dashboard includes `dist/opportunity-records-bridge.js` and `dist/phase2-ui.js`. When the owner is signed in, it loads opportunities from `opportunity_records`, applications from `application_records`, current CV/email artifacts from `cv_versions` and `email_drafts`, profile facts/evidence from `profile_facts` and `profile_fact_evidence`, the latest sync summary from `profile_sync_runs`, and matching settings from `user_settings`. UI-only filters and demo records remain local-only and are never uploaded. Destructive opportunity/application deletes are sent through explicit persisted deletion queues; ordinary snapshot reconciliation never deletes cloud history. The UI keeps match classification separate from application status, and future automation cards remain explanatory placeholders only.
 
 Phase 2 behavior tests can be run with `node --test tests/phase2_ui.test.mjs`.
 
 The Phase 3 contracts and payloads are documented in `docs/automation-contracts.md`. The rollback-safe SQL contract tests are in `supabase/tests/phase3_automation_interfaces.sql` and require a privileged Supabase SQL test session.
 
 The production migration/version mapping is tracked in `docs/supabase-migration-ledger.md` because the managed migration service assigns production timestamps when migrations are applied.
-
-Step 2 hardens every exposed user-data table with owner-scoped RLS and minimum grants, checks child/parent ownership for applications, CVs, drafts, profile evidence, and ingestion events, and keeps privileged automation RPCs service-role-only. Profile sources begin empty and must be written to the authenticated user's `user_settings`; no account-specific profile, opportunity, CV, or email content is shipped in the public build.
-
-## Step 3 private frontend behavior
-
-The published dashboard starts with an empty signed-out workspace. It clears in-memory records, drafts, profile facts, source registry entries, selections, and deletion queues before sign-out, session expiry, or an account switch. Owner data is rendered only after the authenticated account is known, and stale asynchronous loads are invalidated during transitions. No browser-readable Gmail/provider token or permanent public file URL is used. CV content is stored as versioned owner-scoped database content; Supabase Storage is not used by this build.
 
 ## GitHub Pages
 

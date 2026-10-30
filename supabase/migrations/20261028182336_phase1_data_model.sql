@@ -543,7 +543,7 @@ create table if not exists public.user_settings (
   domain_relevance_enabled boolean not null default true,
   target_countries text[] not null default array['United States', 'France', 'Germany', 'Spain', 'United Arab Emirates', 'Saudi Arabia', 'China', 'Japan']::text[],
   opportunity_types text[] not null default array['internship', 'research']::text[],
-  approved_profile_sources jsonb not null default '[]'::jsonb,
+  approved_profile_sources jsonb not null default '[{"source_type":"github","source_name":"Yassine-Benchekroun","source_url":"https://github.com/Yassine-Benchekroun"},{"source_type":"portfolio","source_name":"Yassine Benchekroun Portfolio","source_url":"https://yassine-benchekroun.github.io"}]'::jsonb,
   sender_identity_email text,
   sender_identity_name text,
   provider_connection_status text not null default 'not_connected' check (provider_connection_status in ('not_connected', 'connected', 'revoked', 'error')),
