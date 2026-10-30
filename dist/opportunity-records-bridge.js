@@ -3,9 +3,9 @@
 (function () {
   var config = window.SUPABASE_CONFIG || {};
   var hasConfig = Boolean(config.url && config.publishableKey);
-  var bridgeClient = hasConfig && window.supabase && typeof window.supabase.createClient === 'function'
+  var bridgeClient = window.AIH_SUPABASE_CLIENT || (hasConfig && window.supabase && typeof window.supabase.createClient === 'function'
     ? window.supabase.createClient(config.url, config.publishableKey)
-    : null;
+    : null);
   var bridgeUser = null;
   var bridgeReady = false;
   var knownOpportunityIds = new Set();
@@ -594,9 +594,10 @@
     if (!bridgeClient) return;
     var sessionResult = await bridgeClient.auth.getSession();
     bridgeUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : null;
-    if (!bridgeUser || !window.AIH_isOwnerSession || !window.AIH_isOwnerSession(bridgeUser)) {
+    if (!bridgeUser || !window.AIH_isAuthenticatedSession || !window.AIH_isAuthenticatedSession(bridgeUser)) {
       bridgeUser = null;
       bridgeReady = false;
+      if (window.AIH_setSignedOutState) window.AIH_setSignedOutState();
       return;
     }
     await loadUserSettings();

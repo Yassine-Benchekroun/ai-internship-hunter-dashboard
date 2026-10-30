@@ -27,7 +27,7 @@ const demoOpportunities=[
 const demoApplications=[
 {id:'app-novavision-demo',demo:true,opportunityId:'opp-novavision-demo',org:'NovaVision Labs',contact:'Talent team',position:'Computer Vision Engineer Intern',country:'France',sentDate:'2026-10-25',recipient:'careers@novavision.demo',subject:'Application — Computer Vision Engineer Intern',emailVersion:'Email v1',cvVersion:'CV v2',status:'Waiting',lastResponse:'',followUp:'2026-11-04',notes:'Demo application — no email was sent from this dashboard.',body:'Hello NovaVision Labs team,\n\nI am reaching out regarding the Computer Vision Engineer Intern opportunity. My verified background includes Python, PyTorch, and computer vision projects such as Smart Parking and ClassiBench.\n\nI would be glad to share more context on how this experience could support your visual inspection work. My targeted CV is attached for review.\n\nBest regards,\nYassine'},
 {id:'app-manual-demo',demo:true,opportunityId:'opp-manual-demo',org:'Institute for Intelligent Agriculture',contact:'Dr. Samira Haddad',position:'Research assistant — crop image analysis',country:'United Arab Emirates',sentDate:'2026-10-20',recipient:'samira.haddad@institute.demo',subject:'Research outreach — crop image analysis',emailVersion:'Email v1',cvVersion:'CV v1',status:'Already Sent',lastResponse:'',followUp:'2026-10-30',notes:'Demo manual entry. Linked to existing Opportunity History record.',body:'Dear Dr. Haddad,\n\nI am writing to ask whether my verified computer vision background could be relevant to your work on crop image analysis. I have worked on verified projects involving Python and visual data, and I would be happy to share a focused CV.\n\nI understand this is exploratory outreach and would appreciate any guidance on fit.\n\nBest regards,\nYassine'}];
-function defaultState(){return{opportunities:structuredClone(demoOpportunities),applications:structuredClone(demoApplications),route:'new',connected:false,threshold:70,countries:['United States','France','Germany','Spain','United Arab Emirates','Saudi Arabia','China','Japan'],qualityTarget:30,search:'',filters:{country:'All',type:'All',status:'All',sort:'score'},selected:[],emailDrafts:{}}}function loadState(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY));return s&&s.opportunities&&s.applications?{...defaultState(),...s}:defaultState()}catch(e){return defaultState()}}let state=loadState();function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
+function defaultState(){return{opportunities:[],applications:[],route:'overview',connected:false,threshold:70,countries:['United States','France','Germany','Spain','United Arab Emirates','Saudi Arabia','China','Japan'],qualityTarget:30,search:'',filters:{country:'All',type:'All',status:'All',sort:'score'},selected:[],emailDrafts:{}}}function loadState(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY));return s&&s.opportunities&&s.applications?{...defaultState(),...s}:defaultState()}catch(e){return defaultState()}}let state=loadState();function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
 function icon(n){const p={grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',spark:'<path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Z"/><path d="m19 17 .7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17Z"/>',target:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3.5V2m8.5 10H22M12 20.5V22M3.5 12H2"/>',layers:'<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/>',send:'<path d="m3 4 18 8-18 8 3.4-7.1L14 12l-7.6-.9L3 4Z"/><path d="M3 12h11"/>',archive:'<path d="M4 7h16v13H4zM3 4h18v3H3zM9 12h6"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',shield:'<path d="M12 3 20 6v5.4c0 4.7-3.4 8-8 9.6-4.6-1.6-8-4.9-8-9.6V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/>',settings:'<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1 1.7 1-1.7 3-1.8-1a7.8 7.8 0 0 1-1.6.9L16 21h-3.5l-.2-2a7.4 7.4 0 0 1-1.7-.9l-1.8 1-1.7-3 1.7-1.1v-.1a7 7 0 0 1 0-1.9l-1.7-1.1 1.7-3 1.8 1a7.8 7.8 0 0 1 1.7-.9l.2-2H16l.2 2c.6.2 1.1.5 1.7.9l1.8-1 1.7 3-1.7 1.1a7 7 0 0 1 0 2Z"/>',search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',plus:'<path d="M12 5v14M5 12h14"/>',x:'<path d="m6 6 12 12M18 6 6 18"/>',copy:'<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',external:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',edit:'<path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5 4 16.5Z"/><path d="m13.8 6.7 3.5 3.5"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7l1-3h4l1 3"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',file:'<path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/>',chevron:'<path d="m9 18 6-6-6-6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',wand:'<path d="m15 4 5 5M5 19l8.5-8.5M4 4l.8 2.2L7 7l-2.2.8L4 10l-.8-2.2L1 7l2.2-.8L4 4ZM18 15l.6 1.6L20 17l-1.4.4L18 19l-.6-1.6L16 17l1.4-.4L18 15Z"/>',link:'<path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1"/>'};return`<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p[n]||p.info}</svg>`}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}function initials(n){return String(n).split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()}function opp(id){return state.opportunities.find(o=>o.id===id)}function linkedApps(id){return state.applications.filter(a=>a.opportunityId===id)}function fmtDate(date){if(!date||date==='Not listed')return date||'—';const d=new Date(date+'T00:00:00');return Number.isNaN(d.getTime())?date:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}function visibleOpps(s){return state.opportunities.filter(o=>o.activeSections?.includes(s)&&matchesFilters(o))}function matchesFilters(o){const f=state.filters||{};if(state.search&&!([o.org,o.contact,o.position,o.country,o.type,o.lab].join(' ').toLowerCase().includes(state.search.toLowerCase())))return false;if(f.country&&f.country!=='All'&&o.country!==f.country)return false;if(f.type&&f.type!=='All'&&o.type!==f.type)return false;if(f.status&&f.status!=='All'&&o.status!==f.status)return false;return true}function sortedOpps(items){const s=state.filters?.sort||'score';return[...items].sort((a,b)=>s==='score'?b.score-a.score:s==='org'?a.org.localeCompare(b.org):s==='country'?a.country.localeCompare(b.country):s==='date'?b.discovered.localeCompare(a.discovered):a.status.localeCompare(b.status))}function count(s){if(s==='new')return visibleOpps('new').length;if(s==='top')return visibleOpps('top').length;if(s==='lower')return visibleOpps('lower').length;if(s==='history')return state.opportunities.length;if(s==='applications')return state.applications.length;if(s==='ready')return state.opportunities.filter(o=>o.status==='Ready').length;return 0}function stats(){return{new:count('new'),top:count('top'),lower:count('lower'),sent:state.applications.length,replies:state.applications.filter(a=>['Replied','Interview','Offer'].includes(a.status)).length,interviews:state.applications.filter(a=>['Interview','Offer'].includes(a.status)).length,history:state.opportunities.length}}function pageTitle(){return navItems.find(x=>x.id===state.route)?.label||'Overview'}
 function statusPill(s){const c=['Ready','Replied','Interview','Offer'].includes(s)?'green':s==='Already Sent'?'cyan':s==='Needs review'?'yellow':'';return`<span class="pill ${c}">${esc(s)}</span>`}function statCard(l,v,n,c){return`<div class="stat" style="--stat-color:${c}"><div class="stat-label">${esc(l)}</div><div class="stat-value mono">${v}</div><div class="stat-note">${esc(n)}</div></div>`}function emptyState(t,c){return`<div class="empty-state"><strong>${esc(t)}</strong><span>${esc(c)}</span></div>`}function pageIntro(e,t,c,a=''){return`<div class="page-heading"><div><div class="eyebrow">${esc(e)}</div><h1>${esc(t)}</h1><p class="subcopy">${esc(c)}</p></div><div class="page-actions">${a}</div></div>`}
@@ -59,27 +59,26 @@ function resetDashboard(){confirmModal('Reset dashboard?', 'This permanently del
 function installResetControl(){if(state.route!=='settings'||document.getElementById('reset-dashboard-btn'))return;const card=[...document.querySelectorAll('.setting-card')].find(x=>x.querySelector('h2')?.textContent.includes('Data Management'));if(!card)return;const row=document.createElement('div');row.className='setting-row';row.innerHTML='<div><div class="setting-name">Reset dashboard</div><div class="setting-help">Permanently deletes every local record, draft, setting, and seeded demo item.</div></div><button id="reset-dashboard-btn" class="btn small danger" onclick="resetDashboard()">Reset dashboard</button>';card.appendChild(row)}
 const __aihRender=render;render=function(){__aihRender();installResetControl()};installResetControl();
 </script>
-<script id="owner-access-guard">
+<script id="authenticated-access-guard">
 (function(){
-  window.AIH_OWNER_USER_ID='3a419f7d-36e0-43d5-aa39-156b3177b84a';
   window.__AIH_DEMO_PREVIEW=true;
-  function ownerSession(user){user=user||window.__AIH_OWNER_SESSION;return Boolean(user&&user.id===window.AIH_OWNER_USER_ID)}
-  function demoState(){var base=defaultState();return Object.assign({},base,{route:'overview',connected:false,connectedEmail:null,emailProvider:'',selected:[],emailDrafts:{}})}
-  function setDemoState(){var route=state&&state.route&&state.route!=='settings'?state.route:'overview';state=demoState();state.route=route;window.__AIH_OWNER_SESSION=null;window.__AIH_DEMO_PREVIEW=true;localStorage.removeItem(STORAGE_KEY)}
-  function requireOwner(){if(ownerSession())return true;toast('Demo mode is read-only. Sign in with the owner account to change data.',true);return false}
-  window.AIH_isOwnerSession=ownerSession;
-  window.AIH_setDemoState=setDemoState;
-  window.AIH_requireOwner=requireOwner;
+  function authenticatedSession(user){user=user||window.__AIH_AUTHENTICATED_SESSION;return Boolean(user&&user.id)}
+  function signedOutState(){var base=defaultState();return Object.assign({},base,{opportunities:[],applications:[],profileFacts:[],profileSync:null,route:'overview',connected:false,connectedEmail:null,emailProvider:'',selected:[],emailDrafts:{}})}
+  function setSignedOutState(){state=signedOutState();window.__AIH_AUTHENTICATED_SESSION=null;window.__AIH_DEMO_PREVIEW=true;localStorage.removeItem(STORAGE_KEY)}
+  function requireAuthenticated(){if(authenticatedSession())return true;toast('Sign in to access your private workspace.',true);return false}
+  window.AIH_isAuthenticatedSession=authenticatedSession;
+  window.AIH_setSignedOutState=setSignedOutState;
+  window.AIH_requireAuthenticated=requireAuthenticated;
   var previousSidebar=sidebarHTML;
-  sidebarHTML=function(){var html=previousSidebar();if(ownerSession())return html;return html.replace(/<button[^>]*onclick="navigate\('settings'\)"[^>]*>.*?<\/button>/,'')};
+  sidebarHTML=function(){var html=previousSidebar();if(authenticatedSession())return html;return html.replace(/<button[^>]*onclick="navigate\('settings'\)"[^>]*>.*?<\/button>/,'')};
   var previousRoute=routeHTML;
-  routeHTML=function(){if(state.route==='settings'&&!ownerSession())state.route='overview';return previousRoute()};
+  routeHTML=function(){if(state.route==='settings'&&!authenticatedSession())state.route='overview';return previousRoute()};
   var previousNavigate=navigate;
-  navigate=function(route){if(route==='settings'&&!ownerSession()){toast('Settings are restricted to the owner account.',true);return}return previousNavigate(route)};
+  navigate=function(route){if(route==='settings'&&!authenticatedSession()){toast('Sign in to access private settings.',true);return}return previousNavigate(route)};
   var previousRender=render;
-  render=function(){if(!ownerSession())setDemoState();previousRender();if(!ownerSession()){var actions=document.querySelector('.topbar-actions');if(actions&&!document.getElementById('owner-login-btn')){var button=document.createElement('button');button.id='owner-login-btn';button.className='btn small ghost';button.textContent='Owner sign-in';button.onclick=function(){if(window.openCloudDatabaseLogin)window.openCloudDatabaseLogin()};actions.prepend(button)}}};
-  ['setThreshold','saveEditedEmail','saveEmailVersion','saveImprovedVersion','classifyOpportunity','saveManualApplication','confirmRemoveActive','confirmDeleteHistory','confirmClearHistory','confirmDeleteApplication'].forEach(function(name){var original=window[name];if(typeof original!=='function')return;window[name]=function(){if(!requireOwner())return;return original.apply(this,arguments)}});
-  ['resetDemo','resetDashboard'].forEach(function(name){var original=window[name];if(typeof original!=='function')return;window[name]=function(){if(!requireOwner())return;original.apply(this,arguments);var confirmed=window.__confirmAction;if(typeof confirmed==='function'){window.__confirmAction=function(){window.__AIH_DEMO_PREVIEW=true;window.__AIH_SKIP_CLOUD_SYNC=true;try{return confirmed()}finally{setTimeout(function(){window.__AIH_SKIP_CLOUD_SYNC=false},0)}}}}});
+  render=function(){if(!authenticatedSession())setSignedOutState();previousRender();if(!authenticatedSession()){var actions=document.querySelector('.topbar-actions');if(actions&&!document.getElementById('account-login-btn')){var button=document.createElement('button');button.id='account-login-btn';button.className='btn small ghost';button.textContent='Sign in';button.onclick=function(){if(window.openCloudDatabaseLogin)window.openCloudDatabaseLogin()};actions.prepend(button)}}};
+  ['setThreshold','saveEditedEmail','saveEmailVersion','saveImprovedVersion','classifyOpportunity','saveManualApplication','confirmRemoveActive','confirmDeleteHistory','confirmClearHistory','confirmDeleteApplication'].forEach(function(name){var original=window[name];if(typeof original!=='function')return;window[name]=function(){if(!requireAuthenticated())return;return original.apply(this,arguments)}});
+  ['resetDemo','resetDashboard'].forEach(function(name){var original=window[name];if(typeof original!=='function')return;window[name]=function(){if(!requireAuthenticated())return;original.apply(this,arguments);var confirmed=window.__confirmAction;if(typeof confirmed==='function'){window.__confirmAction=function(){window.__AIH_DEMO_PREVIEW=true;window.__AIH_SKIP_CLOUD_SYNC=true;try{return confirmed()}finally{setTimeout(function(){window.__AIH_SKIP_CLOUD_SYNC=false},0)}}}}});
 })();
 </script>
 <script>
@@ -98,9 +97,10 @@ loadJsonFileState();
   var client = hasConfig && window.supabase && typeof window.supabase.createClient === 'function'
     ? window.supabase.createClient(config.url, config.publishableKey)
     : null;
+  window.AIH_SUPABASE_CLIENT = client;
   var cloudUser = null;
   var cloudReady = false;
-  window.__AIH_OWNER_SESSION = null;
+  window.__AIH_AUTHENTICATED_SESSION = null;
   var localJsonHost = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
 
   function normalizeCloudState(saved) {
@@ -119,7 +119,7 @@ loadJsonFileState();
     return Object.assign({}, base, {
       opportunities: [],
       applications: [],
-      route: 'settings',
+      route: 'overview',
       connected: false,
       connectedEmail: null,
       emailProvider: '',
@@ -129,16 +129,12 @@ loadJsonFileState();
   }
 
   function loadSignedOutState() {
-    window.AIH_setDemoState();
+    window.AIH_setSignedOutState();
   }
 
   function loadBrowserFallback() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (saved && Array.isArray(saved.opportunities) && Array.isArray(saved.applications)) {
-        state = normalizeCloudState(saved);
-      }
-    } catch (error) {}
+    // A failed private request must never reveal a previous user's cache.
+    loadSignedOutState();
   }
 
   async function loadCloudState() {
@@ -150,23 +146,23 @@ loadJsonFileState();
     try {
       var sessionResult = await client.auth.getSession();
       cloudUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : null;
-      if (!cloudUser || !window.AIH_isOwnerSession(cloudUser)) {
-        window.__AIH_OWNER_SESSION = null;
+      if (!cloudUser || !window.AIH_isAuthenticatedSession(cloudUser)) {
+        window.__AIH_AUTHENTICATED_SESSION = null;
         cloudUser = null;
         cloudReady = false;
         loadSignedOutState();
         render();
-        if (!localJsonHost) setTimeout(function(){ toast('Demo mode is active. Sign in with the owner account for private data and Settings.'); }, 0);
+        if (!localJsonHost) setTimeout(function(){ toast('Sign in to access your private workspace and settings.'); }, 0);
         return;
       }
-      window.__AIH_OWNER_SESSION = cloudUser;
+      window.__AIH_AUTHENTICATED_SESSION = cloudUser;
       window.__AIH_DEMO_PREVIEW = false;
       var result = await client.from('dashboard_state').select('payload').eq('user_id', cloudUser.id).maybeSingle();
       if (result.error) throw result.error;
       if (result.data && result.data.payload) {
         state = normalizeCloudState(result.data.payload);
       } else {
-        state = normalizeCloudState(state);
+        state = normalizeCloudState(privateEmptyState());
         var firstSave = await client.from('dashboard_state').upsert({
           user_id: cloudUser.id,
           payload: state,
@@ -177,7 +173,7 @@ loadJsonFileState();
       cloudReady = true;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       render();
-      toast('Supabase cloud storage connected.');
+      toast('Private workspace connected.');
     } catch (error) {
       cloudReady = false;
       console.error('Supabase connection error', error);
@@ -199,7 +195,7 @@ loadJsonFileState();
         body: JSON.stringify(Object.assign({}, state, {storage: 'json-file'}))
       }).catch(function(){ toast('Could not save to dashboard-data.json.', true); });
     }
-    if (!client || !cloudUser || !cloudReady || !window.AIH_isOwnerSession()) return;
+    if (!client || !cloudUser || !cloudReady || !window.AIH_isAuthenticatedSession()) return;
     var result = await client.from('dashboard_state').upsert({
       user_id: cloudUser.id,
       payload: state,
@@ -215,8 +211,8 @@ loadJsonFileState();
     }
     var currentEmail = cloudUser && cloudUser.email ? cloudUser.email : '';
     modal(
-      'Connect cloud database',
-      'Sign in with a magic link so your dashboard data is private to your Supabase account.',
+      'Sign in to your private workspace',
+      'Use a secure magic link to access the workspace owned by your authenticated account.',
       '<div class="form-grid"><div class="field full"><label for="cloud-login-email">Account email</label><input id="cloud-login-email" type="email" value="' + esc(currentEmail) + '" placeholder="you@example.com" autocomplete="email"/></div></div><div class="helper-note">Supabase will email you a secure sign-in link. This is separate from the sender email used for application drafts.</div>',
       '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="requestCloudMagicLink()">Send sign-in link</button>',
       false
@@ -232,7 +228,7 @@ loadJsonFileState();
     }
     var result = await client.auth.signInWithOtp({
       email: email,
-      options: {emailRedirectTo: window.location.href, shouldCreateUser: false}
+      options: {emailRedirectTo: window.location.href, shouldCreateUser: true}
     });
     if (result.error) {
       var errorMessage = result.error.message || 'Could not send the sign-in link.';
@@ -248,17 +244,18 @@ loadJsonFileState();
 
   async function signOutCloud() {
     confirmModal(
-      'Disconnect cloud database?',
-      'The dashboard will stop syncing with Supabase. Your cloud records will remain stored.',
-      'Disconnect',
+      'Sign out?',
+      'Your private records remain stored. This browser will clear its private cache.',
+      'Sign out',
       async function() {
         await client.auth.signOut();
         cloudUser = null;
         cloudReady = false;
-        window.__AIH_OWNER_SESSION = null;
+        window.__AIH_AUTHENTICATED_SESSION = null;
+        localStorage.removeItem(STORAGE_KEY);
         loadSignedOutState();
         render();
-        toast('Cloud database disconnected.');
+        toast('Signed out.');
       }
     );
   }
@@ -275,14 +272,14 @@ loadJsonFileState();
     row.id = 'cloud-db-control';
     row.className = 'setting-row';
     var status = cloudReady && cloudUser
-      ? 'Connected privately as ' + (cloudUser.email || 'your Supabase account') + '. Changes sync to Supabase.'
+      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Private changes are saved to your account.'
       : hasConfig
-        ? 'Not signed in. Sign in to sync this dashboard between devices.'
-        : 'Supabase configuration is missing.';
+        ? 'Not signed in. Sign in to access your private workspace.'
+        : 'Sign-in is temporarily unavailable.';
     var button = cloudReady && cloudUser
       ? '<button class="btn small ghost" onclick="disconnectCloudDatabase()">Disconnect</button>'
-      : '<button class="btn small primary" onclick="openCloudDatabaseLogin()">Connect cloud database</button>';
-    row.innerHTML = '<div><div class="setting-name">Supabase cloud storage</div><div class="setting-help">' + esc(status) + '</div></div>' + button;
+      : '<button class="btn small primary" onclick="openCloudDatabaseLogin()">Sign in</button>';
+    row.innerHTML = '<div><div class="setting-name">Account</div><div class="setting-help">' + esc(status) + '</div></div>' + button;
     card.appendChild(row);
   }
 

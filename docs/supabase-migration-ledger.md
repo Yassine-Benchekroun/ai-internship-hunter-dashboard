@@ -17,5 +17,6 @@ The production project `cjwsyitmoussjnjjgdsv` records migrations with the timest
 | 20261028194413 | phase3_event_conflict_fix | `supabase/migrations/20261028211000_phase3_event_conflict_fix.sql` |
 | 20261028194507 | phase3_artifact_ambiguity_fix | `supabase/migrations/20261028211500_phase3_artifact_ambiguity_fix.sql` |
 | 20261028195726 | phase4_browser_contract_hardening | `supabase/migrations/20261028230000_phase4_browser_contract_hardening.sql` |
+| 20261029220721 | step1_auth_ownership_foundation | `supabase/migrations/20261029220000_step1_auth_ownership_foundation.sql` |
 
-The production list was verified after applying Phase 4. No scheduled automation or mail sender is part of these migrations.
+The production list was verified after applying Step 1. No scheduled automation or mail sender is part of these migrations.

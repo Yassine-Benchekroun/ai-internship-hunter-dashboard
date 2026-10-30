@@ -217,7 +217,7 @@
   function profileHTMLPhase2() {
     ensurePhase2State();
     var grouped = profileFactsByCategory();
-    var demoMode = !window.__AIH_OWNER_SESSION;
+    var demoMode = !window.__AIH_AUTHENTICATED_SESSION;
     return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', '<a class="btn ghost" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">' + icon('external') + ' Open GitHub</a>') +
       (demoMode ? '<div class="notice phase2-demo-notice"><strong>DEMO DATA</strong> · This signed-out preview is not connected to the private profile registry. Empty categories are intentional; no demo fact is presented as verified.</div>' : '') +
       profileSyncHTML() +
@@ -265,7 +265,7 @@
   }
 
   function saveSenderIdentity() {
-    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
+    if (window.AIH_requireAuthenticated && !window.AIH_requireAuthenticated()) return;
     var input = document.getElementById('phase2-sender-email');
     var email = input && input.value ? input.value.trim() : '';
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -354,11 +354,11 @@
   settingsHTML = settingsHTMLPhase2;
   statusPill = applicationBadge;
   setThreshold = function (value) {
-    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
+    if (window.AIH_requireAuthenticated && !window.AIH_requireAuthenticated()) return;
     setThresholdPhase2(value);
   };
   classifyOpportunity = function (id) {
-    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
+    if (window.AIH_requireAuthenticated && !window.AIH_requireAuthenticated()) return;
     classifyByScore(id);
   };
   toggleConnection = function () { navigate('settings'); toast('Sender identity and provider connection are managed separately in Settings.'); };
