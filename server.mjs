@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(root, 'dist');
 const port = Number(process.env.PORT || 4173);
+const host = process.env.HOST || '127.0.0.1';
 
 function sendJson(res, status, value) {
   const body = JSON.stringify(value);
@@ -45,8 +47,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`AI Internship Hunter local server: http://127.0.0.1:${port}/`);
+server.listen(port, host, () => {
+  console.log(`AI Internship Hunter local server: http://${host}:${port}/`);
   console.log('Private records: owner-scoped Supabase tables only');
 });
 
