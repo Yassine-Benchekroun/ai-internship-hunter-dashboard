@@ -177,7 +177,7 @@ Results:
 - Leakage scan: PASS — the exact authorized GitHub/portfolio URL and owner-name markers are absent from `dist/`, SQL fallback defaults, automation docs, and SQL fixtures. Public source/evidence links now render only from the authenticated backend settings state; empty source state remains explicit.
 - UI regression: PASS — signed-out profile rendering shows no source link; the owner fixture renders a backend-provided source; JavaScript syntax checks pass; all 28 repository tests pass.
 - Privacy check: PASS — the dashboard and normalized-data bridge both require the owner session before loading private data. Live read-only verification confirms `user_settings` RLS is enabled, `anon` has zero grants on the protected tables, the owner settings row remains present with 2 approved sources and 8 countries, and no live data was changed.
-- Commit: `98589aa` — Complete Step 3 source privacy hardening; no deployment or merge performed.
+- Commit: `aba9da0` — Complete Step 3 source privacy hardening; no deployment or merge performed.
 - Blockers: None for Step 3. Step 4 remains not started by request.
 
 When complete:
