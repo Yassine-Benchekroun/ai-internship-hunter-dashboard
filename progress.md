@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 5 — Add Profile Sync endpoint + dry run**
+**Step 6 — Verify Opportunity ingestion + dry run**
 
 ---
 
@@ -38,8 +38,8 @@ Current step:
 | 2. Fix authoritative backend settings | COMPLETE |
 | 3. Remove hardcoded real user/source data safely | COMPLETE |
 | 4. Add Master CV backend support | COMPLETE |
-| 5. Add Profile Sync endpoint + dry run | NOT STARTED |
-| 6. Verify Opportunity ingestion + dry run | BLOCKED BY STEP 5 |
+| 5. Add Profile Sync endpoint + dry run | COMPLETE |
+| 6. Verify Opportunity ingestion + dry run | NOT STARTED |
 | 7. Implement Gmail/provider OAuth | BLOCKED BY STEP 6 |
 | 8. Add Application Monitor endpoint + dry run | BLOCKED BY STEP 7 |
 | 9. Add run-health visibility + Supabase cleanup | BLOCKED BY STEP 8 |
@@ -223,31 +223,31 @@ When complete:
 
 # Step 5 — Add Profile Sync endpoint + dry run
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Create secure `sync-profile` endpoint.
-- [ ] Require authorization.
-- [ ] Scope to intended account.
-- [ ] Validate approved sources.
-- [ ] Keep privileged credentials server-side.
-- [ ] Call existing sync RPC.
-- [ ] Run controlled GitHub/portfolio sync.
-- [ ] Verify profile facts/evidence.
-- [ ] Verify deduplication/source-missing behavior.
-- [ ] Verify sync run log.
-- [ ] Verify dashboard rendering.
-- [ ] Commit/push.
+- [x] Create secure `sync-profile` endpoint.
+- [x] Require authorization with platform JWT verification and `auth.getUser`.
+- [x] Scope to the signed-in account.
+- [x] Validate approved sources through backend settings and `is_approved_profile_source`.
+- [x] Keep privileged credentials server-side.
+- [x] Call existing sync RPC.
+- [x] Run controlled GitHub/portfolio sync.
+- [x] Verify profile facts/evidence.
+- [x] Verify deduplication/source-missing behavior.
+- [x] Verify sync run log.
+- [x] Verify dashboard rendering.
+- [x] Commit/push.
 
 Results:
 
-- Endpoint:
-- Facts/evidence:
-- Sync log:
-- Tests:
-- Commit:
-- Blockers:
+- Endpoint: Deployed `sync-profile` as live Edge Function version 1 with `verify_jwt = true`; unauthenticated HTTP smoke test returned `401 UNAUTHORIZED_NO_AUTH_HEADER`; retrieved live source matches the local source exactly. The endpoint derives account scope from the verified caller, loads backend-approved GitHub/portfolio sources, keeps privileged credentials server-side, extracts bounded evidence-backed facts, preserves source-missing history, and calls the service-role-only `automation_sync_profile` RPC.
+- Facts/evidence: Controlled approved-source sync recorded 19 verified facts (8 projects and 11 technologies) with 20 evidence rows and 0 review-needed records. The live sources were the configured GitHub profile and portfolio; no content was fabricated and no Master CV content was read or written.
+- Sync log: First live run completed with 19 inserted, 0 updated, 0 duplicates, and 0 errors. Repeating the same payload completed with 0 inserted, 0 updated, 19 duplicates ignored, and 0 errors. A rollback-only `source_missing` assertion passed and left 0 temporary test facts.
+- Tests: PASS — `node --check supabase/functions/sync-profile/index.ts`; all 36 repository Node tests; live pre/post database catalog and row-count verification; deployed function parity; JWT boundary smoke test; fact/evidence counts; duplicate behavior; rollback-only source-missing behavior; no recent email artifacts. Security/performance advisor findings remain the deferred Step 9 findings.
+- Commit: Pending final feature-branch commit at handoff.
+- Blockers: None for Step 5. Step 6 is now the current step and remains not started. No schedule, automatic email sending, provider connection, or later-step work was created.
 
 When complete:
 
@@ -259,7 +259,7 @@ When complete:
 
 # Step 6 — Verify Opportunity ingestion + dry run
 
-Status: **BLOCKED BY STEP 5**
+Status: **NOT STARTED**
 
 Checklist:
 

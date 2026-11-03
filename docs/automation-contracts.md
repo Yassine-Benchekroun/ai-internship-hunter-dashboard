@@ -41,6 +41,16 @@ It is read-only and service-role-only. It does not return provider secrets.
 
 RPC: `public.automation_sync_profile(p_payload jsonb)`
 
+Edge Function: `sync-profile` (`POST /functions/v1/sync-profile`)
+
+The endpoint requires a signed-in Supabase Auth JWT. It derives `user_id`
+from the verified caller, reads that account's approved profile sources registry through
+the server-side settings contract, validates each source again with
+`is_approved_profile_source`, and keeps the privileged key inside the Edge
+Function. The current implementation supports approved GitHub profile URLs and
+approved portfolio URLs. It sends only extracted facts and source evidence to
+the RPC; it never accepts a client-supplied account scope and never sends mail.
+
 Reads and writes:
 
 - Reads existing `profile_facts` and `profile_fact_evidence`.
