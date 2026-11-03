@@ -208,9 +208,10 @@ Results:
 - Schema: PASS — added `public.master_cv_versions` with user ownership, server-controlled revisions, one current revision per user, supplied content/source reference, timestamps, size/material checks, and history indexes. Targeted `public.cv_versions` remains unchanged and opportunity-linked.
 - RLS: PASS — authenticated reads are restricted to `auth.uid() = user_id`; anonymous access and direct authenticated table writes are revoked. The privileged implementation is isolated in `private`, while the public RPC is an invoker wrapper.
 - Import/save: PASS — `public.save_master_cv(jsonb)` accepts only caller-supplied content or source references, rejects client-controlled owner/revision/current fields, validates types and bounds, serializes revision allocation, and never fabricates CV content.
-- Tests: PASS — all 32 repository Node tests, syntax/diff checks, and the rollback-only Supabase owner/non-owner privacy SQL test passed. A follow-up query confirmed the live project has no Step 4 table/functions after rollback; no production schema or data changed.
-- Commit: `c09b462` — Add Master CV backend support.
-- Blockers: None for Step 4. No deployment, merge, schedule, or Step 5 work was performed.
+- Tests: PASS — all 32 repository Node tests and the server syntax check pass, including the Step 4 contract assertions after making the test line-ending portable. The owner-privacy SQL test is present and rollback-only; a read-only live catalog audit confirmed the Step 4 table/functions are not deployed, so no production schema or data changed.
+- PDF source: PASS — the supplied Master CV is a readable 3-page PDF with extractable text. It remains untracked/private and was not uploaded or committed to the public repository.
+- Commit: `c09b462` — Add Master CV backend support; follow-up test/progress fix pending.
+- Blockers: None for the code step. Live migration/application of the PDF remains intentionally deferred because deployment and production data changes were not authorized; no merge, schedule, or Step 5 work was performed.
 
 When complete:
 

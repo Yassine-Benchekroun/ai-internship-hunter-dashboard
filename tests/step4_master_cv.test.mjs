@@ -6,7 +6,7 @@ const [migration, sqlTest, docs] = await Promise.all([
   readFile(new URL('../supabase/migrations/20261103000000_step4_master_cv.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/tests/step4_master_cv.sql', import.meta.url), 'utf8'),
   readFile(new URL('../docs/master-cv-contract.md', import.meta.url), 'utf8')
-]);
+]).then((files) => files.map((file) => file.replace(/\r\n/g, '\n')));
 
 test('Master CV schema has owned revisions and one current row per user', () => {
   assert.match(migration, /create table if not exists public\.master_cv_versions/);
