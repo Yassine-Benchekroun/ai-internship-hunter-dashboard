@@ -137,7 +137,8 @@ Checklist:
 - [x] Load/save settings from backend.
 - [x] Preserve sender/provider separation.
 - [x] Test persistence/refresh.
-- [x] Commit/push.
+- [x] Commit.
+- [ ] Push feature branch.
 
 Results:
 
@@ -146,7 +147,7 @@ Results:
 - Countries: Live `target_countries` now contains the explicitly authorized repository country list.
 - Tests: PASS — Node syntax checks; all 23 repository/UI/backend tests; local `/api/settings` load-save-refresh; live Supabase read-before/write/read-back verification. Sender identity remains separate from provider status `not_connected`.
 - Commit: `d6dab9d` — Complete Step 2 backend settings. The commit is isolated to this worktree; no merge or deployment performed.
-- Blockers: None for Step 2. Step 3 is intentionally not started.
+- Blockers: Step 2 is complete, but pushing is blocked because the remote feature branch advanced to `be73142` with commits `7688e00` and `be73142` after the isolated worktree was created. No force-push, rebase, merge, deployment, or Step 3 work was performed.
 
 When complete:
 
