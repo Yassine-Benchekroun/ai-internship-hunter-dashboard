@@ -208,10 +208,10 @@ Results:
 - Schema: PASS — added `public.master_cv_versions` with user ownership, server-controlled revisions, one current revision per user, supplied content/source reference, timestamps, size/material checks, and history indexes. Targeted `public.cv_versions` remains unchanged and opportunity-linked.
 - RLS: PASS — authenticated reads are restricted to `auth.uid() = user_id`; anonymous access and direct authenticated table writes are revoked. The privileged implementation is isolated in `private`, while the public RPC is an invoker wrapper.
 - Import/save: PASS — `public.save_master_cv(jsonb)` accepts only caller-supplied content or source references, rejects client-controlled owner/revision/current fields, validates types and bounds, serializes revision allocation, and never fabricates CV content.
-- Tests: PASS — all 32 repository Node tests and the server syntax check pass, including the Step 4 contract assertions after making the test line-ending portable. The owner-privacy SQL test is present and rollback-only; a read-only live catalog audit confirmed the Step 4 table/functions are not deployed, so no production schema or data changed.
-- PDF source: PASS — the supplied Master CV is a readable 3-page PDF with extractable text. It remains untracked/private and was not uploaded or committed to the public repository.
-- Commit: `c09b462` — Add Master CV backend support; follow-up test/progress fix pending.
-- Blockers: None for the code step. Live migration/application of the PDF remains intentionally deferred because deployment and production data changes were not authorized; no merge, schedule, or Step 5 work was performed.
+- Tests: PASS — all 32 repository Node tests and the server syntax check pass, including the Step 4 contract assertions after making the Step 4 test line-ending portable. The owner-privacy SQL test is present and rollback-only; live table/RLS/RPC catalog checks and owner/non-owner readback passed after deployment.
+- PDF source: PASS — the supplied Master CV is a readable 3-page PDF with extractable text and was imported as owner revision 1 through `public.save_master_cv(jsonb)` with 7,852 extracted characters. It remains untracked/private and was not uploaded or committed to the public repository.
+- Commit: `c09b462` — Add Master CV backend support; `3679d93` — Finalize Step 4 Master CV verification; live managed migration `20261103223240`.
+- Blockers: None for Step 4. Supabase security advisor still reports leaked-password protection disabled, and the performance advisor still reports the pre-existing duplicate `profile_sync_runs` SELECT policy and unused indexes; these remain deferred to Step 9. No schedule or automatic sending was created.
 
 When complete:
 
