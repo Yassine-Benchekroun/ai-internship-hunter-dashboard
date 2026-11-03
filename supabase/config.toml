@@ -1,3 +1,6 @@
 # Keep production Edge Function authentication configuration in source control.
 [functions.ingest-opportunities]
 verify_jwt = true
+
+[functions.sync-profile]
+verify_jwt = true
