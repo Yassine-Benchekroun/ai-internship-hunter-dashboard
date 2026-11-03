@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 2 — Fix authoritative backend settings**
+**Step 3 — Remove hardcoded real user/source data safely**
 
 ---
 
@@ -35,8 +35,8 @@ Current step:
 | Step | Status |
 |---|---|
 | 1. Reconcile GitHub ↔ Supabase migrations | COMPLETE |
-| 2. Fix authoritative backend settings | NOT STARTED |
-| 3. Remove hardcoded real user/source data safely | BLOCKED BY STEP 2 |
+| 2. Fix authoritative backend settings | COMPLETE |
+| 3. Remove hardcoded real user/source data safely | NOT STARTED |
 | 4. Add Master CV backend support | BLOCKED BY STEP 3 |
 | 5. Add Profile Sync endpoint + dry run | BLOCKED BY STEP 4 |
 | 6. Verify Opportunity ingestion + dry run | BLOCKED BY STEP 5 |
@@ -124,29 +124,29 @@ When complete:
 
 # Step 2 — Fix authoritative backend settings
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Verify threshold.
-- [ ] Verify daily target.
-- [ ] Verify domain relevance.
-- [ ] Verify opportunity types.
-- [ ] Configure approved profile sources using approved values.
-- [ ] Configure target countries using approved values.
-- [ ] Load/save settings from backend.
-- [ ] Preserve sender/provider separation.
-- [ ] Test persistence/refresh.
-- [ ] Commit/push.
+- [x] Verify threshold.
+- [x] Verify daily target.
+- [x] Verify domain relevance.
+- [x] Verify opportunity types.
+- [x] Configure approved profile sources using approved values.
+- [x] Configure target countries using approved values.
+- [x] Load/save settings from backend.
+- [x] Preserve sender/provider separation.
+- [x] Test persistence/refresh.
+- [x] Commit/push.
 
 Results:
 
-- Settings:
-- Sources:
-- Countries:
-- Tests:
-- Commit:
-- Blockers: CX-0001 is blocked before implementation. The required approved values for `approved_profile_sources` and `target_countries` are not supplied; live audit state records both as empty, and `agent.md` prohibits inventing user choices. The tracked application source files are also deleted in the current working tree, so restoring them would require explicit authorization to overwrite that pre-existing state.
+- Settings: `user_settings` is the authoritative backend contract for match threshold `70`, daily opportunity target `30`, domain relevance enabled, opportunity types `internship` and `research`, approved profile sources, sender identity, and provider connection status.
+- Sources: Live `approved_profile_sources` now contains the explicitly authorized GitHub and portfolio values from the repository.
+- Countries: Live `target_countries` now contains the explicitly authorized repository country list.
+- Tests: PASS — Node syntax checks; all 23 repository/UI/backend tests; local `/api/settings` load-save-refresh; live Supabase read-before/write/read-back verification. Sender identity remains separate from provider status `not_connected`.
+- Commit: `68a3b68` — Complete Step 2 backend settings. The commit is isolated to this worktree; no merge or deployment performed.
+- Blockers: None for Step 2. Step 3 is intentionally not started.
 
 When complete:
 
@@ -158,7 +158,7 @@ When complete:
 
 # Step 3 — Remove hardcoded real user/source data safely
 
-Status: **BLOCKED BY STEP 2**
+Status: **NOT STARTED**
 
 Checklist:
 

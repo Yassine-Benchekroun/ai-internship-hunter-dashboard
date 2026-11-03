@@ -8,6 +8,7 @@
     : null;
   var bridgeUser = null;
   var bridgeReady = false;
+  var backendSettingsLoaded = false;
   var knownOpportunityIds = new Set();
   var syncQueue = Promise.resolve();
   var priorPersist = window.persist;
@@ -31,6 +32,29 @@
 
   function arrayValue(value) {
     return Array.isArray(value) ? value.filter(function (item) { return typeof item === 'string'; }) : [];
+  }
+
+  function settingsStringList(value, fallback) {
+    if (!Array.isArray(value)) return Array.isArray(fallback) ? fallback.slice() : [];
+    return value.map(function (item) { return String(item == null ? '' : item).trim(); }).filter(Boolean);
+  }
+
+  function approvedProfileSources(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(function (source) {
+      if (!source || typeof source !== 'object') return null;
+      return {
+        source_type: cleanText(source.source_type, ''),
+        source_name: cleanText(source.source_name, ''),
+        source_url: cleanText(source.source_url, '')
+      };
+    }).filter(function (source) {
+      return source && source.source_type && source.source_name && source.source_url;
+    });
+  }
+
+  function providerStatus(value) {
+    return ['not_connected', 'connected', 'revoked', 'error'].includes(value) ? value : 'not_connected';
   }
 
   var applicationStatusLabels = {
@@ -465,17 +489,19 @@
     var target = Number(state.qualityTarget);
     if (!Number.isFinite(target)) target = 30;
     target = Math.max(0, Math.min(1000, Math.round(target)));
+    var countries = backendSettingsLoaded ? settingsStringList(state.countries) : [];
+    var sources = backendSettingsLoaded ? approvedProfileSources(state.approvedProfileSources) : [];
     return {
       user_id: bridgeUser.id,
       match_threshold: threshold,
       daily_opportunity_target: target,
       domain_relevance_enabled: state.domainRelevanceEnabled !== false,
-      target_countries: Array.isArray(state.countries) ? state.countries : [],
-      opportunity_types: Array.isArray(state.opportunityTypes) && state.opportunityTypes.length
-        ? state.opportunityTypes
-        : ['internship', 'research'],
+      target_countries: countries,
+      opportunity_types: settingsStringList(state.opportunityTypes, ['internship', 'research']),
+      approved_profile_sources: sources,
       sender_identity_email: state.connectedEmail || null,
-      provider_connection_status: state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected')
+      sender_identity_name: state.senderIdentityName || null,
+      provider_connection_status: providerStatus(state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected'))
     };
   }
 
@@ -503,18 +529,22 @@
     var result = await bridgeClient.from('user_settings').select('*').eq('user_id', bridgeUser.id).maybeSingle();
     if (result.error) throw result.error;
     if (result.data) {
+      backendSettingsLoaded = true;
       state.threshold = result.data.match_threshold;
       state.qualityTarget = result.data.daily_opportunity_target;
-      state.countries = Array.isArray(result.data.target_countries) ? result.data.target_countries : state.countries;
+      state.countries = settingsStringList(result.data.target_countries);
       state.domainRelevanceEnabled = result.data.domain_relevance_enabled !== false;
-      state.opportunityTypes = Array.isArray(result.data.opportunity_types) && result.data.opportunity_types.length
-        ? result.data.opportunity_types
-        : ['internship', 'research'];
-      state.providerConnectionStatus = result.data.provider_connection_status || 'not_connected';
+      state.opportunityTypes = settingsStringList(result.data.opportunity_types);
+      state.approvedProfileSources = approvedProfileSources(result.data.approved_profile_sources);
+      state.providerConnectionStatus = providerStatus(result.data.provider_connection_status);
       state.emailProviderConnected = state.providerConnectionStatus === 'connected';
       state.connected = state.providerConnectionStatus === 'connected';
       state.connectedEmail = result.data.sender_identity_email || '';
+      state.senderIdentityName = result.data.sender_identity_name || '';
     } else {
+      backendSettingsLoaded = true;
+      state.countries = [];
+      state.approvedProfileSources = [];
       var initialSettings = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id' });
       if (initialSettings.error) throw initialSettings.error;
     }
@@ -525,6 +555,9 @@
     var result = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id' });
     if (result.error) throw result.error;
   }
+
+  window.AIH_loadBackendSettings = loadUserSettings;
+  window.AIH_saveBackendSettings = syncUserSettings;
 
   async function loadNormalizedApplications() {
     var pendingDeletes = Array.isArray(state.cloudApplicationDeleteQueue)

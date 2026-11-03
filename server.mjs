@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(root, 'data');
+const dataDir = process.env.AIH_DATA_DIR ? path.resolve(process.env.AIH_DATA_DIR) : path.join(root, 'data');
 const dataFile = path.join(dataDir, 'dashboard-data.json');
 const distDir = path.join(root, 'dist');
 const port = Number(process.env.PORT || 4173);
@@ -18,14 +18,56 @@ const initialState = {
   connected: false,
   connectedEmail: null,
   emailProvider: '',
+  senderIdentityName: null,
+  providerConnectionStatus: 'not_connected',
+  emailProviderConnected: false,
   threshold: 70,
-  countries: ['United States', 'France', 'Germany', 'Spain', 'United Arab Emirates', 'Saudi Arabia', 'China', 'Japan'],
+  countries: [],
   qualityTarget: 30,
+  domainRelevanceEnabled: true,
+  opportunityTypes: ['internship', 'research'],
+  approvedProfileSources: [],
   search: '',
   filters: { country: 'All', type: 'All', status: 'All', sort: 'score' },
   selected: [],
   emailDrafts: {}
 };
+
+function stringList(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback.slice();
+  return value.map((item) => String(item ?? '').trim()).filter(Boolean);
+}
+
+function approvedSources(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((source) => {
+    if (!source || typeof source !== 'object') return null;
+    const normalized = {
+      source_type: String(source.source_type ?? '').trim(),
+      source_name: String(source.source_name ?? '').trim(),
+      source_url: String(source.source_url ?? '').trim()
+    };
+    return normalized.source_type && normalized.source_name && normalized.source_url ? normalized : null;
+  }).filter(Boolean);
+}
+
+function normalizeSettings(state) {
+  const providerConnectionStatus = ['not_connected', 'connected', 'revoked', 'error'].includes(state.providerConnectionStatus)
+    ? state.providerConnectionStatus
+    : 'not_connected';
+  return {
+    threshold: Number.isFinite(Number(state.threshold)) ? Math.max(0, Math.min(100, Math.round(Number(state.threshold)))) : 70,
+    qualityTarget: Number.isFinite(Number(state.qualityTarget)) ? Math.max(0, Math.min(1000, Math.round(Number(state.qualityTarget)))) : 30,
+    domainRelevanceEnabled: state.domainRelevanceEnabled !== false,
+    countries: stringList(state.countries),
+    opportunityTypes: stringList(state.opportunityTypes, initialState.opportunityTypes),
+    approvedProfileSources: approvedSources(state.approvedProfileSources),
+    connectedEmail: typeof state.connectedEmail === 'string' ? state.connectedEmail.trim() : null,
+    senderIdentityName: typeof state.senderIdentityName === 'string' ? state.senderIdentityName.trim() : null,
+    providerConnectionStatus,
+    emailProviderConnected: providerConnectionStatus === 'connected'
+  };
+}
 
 async function ensureStore() {
   await mkdir(dataDir, { recursive: true });
@@ -34,14 +76,17 @@ async function ensureStore() {
 
 async function readState() {
   await ensureStore();
-  return JSON.parse(await readFile(dataFile, 'utf8'));
+  const saved = JSON.parse(await readFile(dataFile, 'utf8'));
+  return { ...initialState, ...saved, ...normalizeSettings(saved) };
 }
 
 async function writeState(nextState) {
   await ensureStore();
+  const normalizedSettings = normalizeSettings(nextState);
   const payload = {
     ...initialState,
     ...nextState,
+    ...normalizedSettings,
     storage: 'json-file',
     savedAt: new Date().toISOString()
   };
@@ -60,6 +105,10 @@ function contentType(filePath) {
   if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
   if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) return 'text/javascript; charset=utf-8';
   return 'application/octet-stream';
+}
+
+function settingsPayload(state) {
+  return normalizeSettings(state);
 }
 
 async function readRequestBody(req) {
@@ -85,12 +134,23 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, await readState());
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/settings') {
+      return sendJson(res, 200, settingsPayload(await readState()));
+    }
+
     if (req.method === 'PUT' && url.pathname === '/api/state') {
       const nextState = JSON.parse(await readRequestBody(req));
       if (!Array.isArray(nextState.opportunities) || !Array.isArray(nextState.applications)) {
         return sendJson(res, 400, { error: 'State must contain opportunities and applications arrays.' });
       }
       return sendJson(res, 200, await writeState(nextState));
+    }
+
+    if (req.method === 'PUT' && url.pathname === '/api/settings') {
+      const settings = JSON.parse(await readRequestBody(req));
+      const current = await readState();
+      const saved = await writeState({ ...current, ...settings });
+      return sendJson(res, 200, settingsPayload(saved));
     }
 
     if (req.method === 'GET') {
@@ -110,8 +170,12 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`AI Internship Hunter local server: http://127.0.0.1:${port}/`);
-  console.log(`JSON store: ${dataFile}`);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`AI Internship Hunter local server: http://127.0.0.1:${port}/`);
+    console.log(`JSON store: ${dataFile}`);
+  });
+}
+
+export { initialState, normalizeSettings, readState, server, settingsPayload, writeState };
 
