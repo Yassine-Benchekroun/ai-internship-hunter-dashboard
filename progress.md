@@ -146,7 +146,7 @@ Results:
 - Countries:
 - Tests:
 - Commit:
-- Blockers:
+- Blockers: CX-0001 is blocked before implementation. The required approved values for `approved_profile_sources` and `target_countries` are not supplied; live audit state records both as empty, and `agent.md` prohibits inventing user choices. The tracked application source files are also deleted in the current working tree, so restoring them would require explicit authorization to overwrite that pre-existing state.
 
 When complete:
 
