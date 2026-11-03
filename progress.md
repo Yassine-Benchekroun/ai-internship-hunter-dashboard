@@ -145,7 +145,7 @@ Results:
 - Sources: Live `approved_profile_sources` now contains the explicitly authorized GitHub and portfolio values from the repository.
 - Countries: Live `target_countries` now contains the explicitly authorized repository country list.
 - Tests: PASS — Node syntax checks; all 23 repository/UI/backend tests; local `/api/settings` load-save-refresh; live Supabase read-before/write/read-back verification. Sender identity remains separate from provider status `not_connected`.
-- Commit: `68a3b68` — Complete Step 2 backend settings. The commit is isolated to this worktree; no merge or deployment performed.
+- Commit: `d6dab9d` — Complete Step 2 backend settings. The commit is isolated to this worktree; no merge or deployment performed.
 - Blockers: None for Step 2. Step 3 is intentionally not started.
 
 When complete:
