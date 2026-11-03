@@ -76,8 +76,8 @@ Current step:
 - `opportunity_ingestion_events`: 0.
 - Important application tables have RLS enabled.
 - Live database still includes Step 1 + Step 2 privacy migrations.
-- Approved profile sources are empty.
-- Target countries are empty.
+- Approved profile sources are configured from the explicitly authorized repository GitHub and portfolio values.
+- Target countries are configured from the explicitly authorized repository country list.
 - Sender identity exists.
 - Provider connection is not connected.
 - One live Edge Function exists: `ingest-opportunities`.
