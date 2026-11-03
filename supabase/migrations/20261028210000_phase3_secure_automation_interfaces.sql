@@ -32,7 +32,7 @@ begin
     'domain_relevance_enabled', coalesce(v_settings.domain_relevance_enabled, true),
     'target_countries', coalesce(to_jsonb(v_settings.target_countries), to_jsonb(array['United States', 'France', 'Germany', 'Spain', 'United Arab Emirates', 'Saudi Arabia', 'China', 'Japan']::text[])),
     'opportunity_types', coalesce(to_jsonb(v_settings.opportunity_types), to_jsonb(array['internship', 'research']::text[])),
-    'approved_profile_sources', coalesce(v_settings.approved_profile_sources, '[{"source_type":"github","source_name":"Yassine-Benchekroun","source_url":"https://github.com/Yassine-Benchekroun"},{"source_type":"portfolio","source_name":"Yassine Benchekroun Portfolio","source_url":"https://yassine-benchekroun.github.io"}]'::jsonb),
+    'approved_profile_sources', coalesce(v_settings.approved_profile_sources, '[]'::jsonb),
     'sender_identity_email', v_settings.sender_identity_email,
     'sender_identity_name', v_settings.sender_identity_name,
     'provider_connection_status', coalesce(v_settings.provider_connection_status, 'not_connected')
@@ -55,7 +55,7 @@ as $$
   with configured as (
     select coalesce(
       (select approved_profile_sources from public.user_settings where user_id = p_user_id),
-      '[{"source_type":"github","source_name":"Yassine-Benchekroun","source_url":"https://github.com/Yassine-Benchekroun"},{"source_type":"portfolio","source_name":"Yassine Benchekroun Portfolio","source_url":"https://yassine-benchekroun.github.io"}]'::jsonb
+      '[]'::jsonb
     ) as sources
   )
   select exists (

@@ -28,9 +28,9 @@ begin
   v_result := public.automation_sync_profile(jsonb_build_object(
     'user_id', v_user_id,
     'status', 'completed',
-    'sources_checked', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'test', 'source_url', 'https://github.com/Yassine-Benchekroun')),
+    'sources_checked', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'test', 'source_url', 'https://github.com/example-profile')),
     'facts', jsonb_build_array(
-      jsonb_build_object('category', 'skill', 'name', 'Python', 'verification_status', 'verified', 'evidence', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'test', 'source_url', 'https://github.com/Yassine-Benchekroun', 'evidence', 'Python evidence'))),
+      jsonb_build_object('category', 'skill', 'name', 'Python', 'verification_status', 'verified', 'evidence', jsonb_build_array(jsonb_build_object('source_type', 'github', 'source_name', 'test', 'source_url', 'https://github.com/example-profile', 'evidence', 'Python evidence'))),
       jsonb_build_object('category', 'skills', 'name', 'python', 'verification_status', 'verified'),
       jsonb_build_object('category', 'skill', 'name', 'Docker', 'verification_status', 'verified')
     )

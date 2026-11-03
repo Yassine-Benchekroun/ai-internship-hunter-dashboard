@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 3 — Remove hardcoded real user/source data safely**
+**Step 4 — Add Master CV backend support**
 
 ---
 
@@ -36,8 +36,8 @@ Current step:
 |---|---|
 | 1. Reconcile GitHub ↔ Supabase migrations | COMPLETE |
 | 2. Fix authoritative backend settings | COMPLETE |
-| 3. Remove hardcoded real user/source data safely | NOT STARTED |
-| 4. Add Master CV backend support | BLOCKED BY STEP 3 |
+| 3. Remove hardcoded real user/source data safely | COMPLETE |
+| 4. Add Master CV backend support | NOT STARTED |
 | 5. Add Profile Sync endpoint + dry run | BLOCKED BY STEP 4 |
 | 6. Verify Opportunity ingestion + dry run | BLOCKED BY STEP 5 |
 | 7. Implement Gmail/provider OAuth | BLOCKED BY STEP 6 |
@@ -58,7 +58,7 @@ Current step:
 - Future automation placeholders exist.
 - Master CV is missing.
 - Gmail OAuth is missing.
-- Some real source/profile values remain hardcoded in public assets.
+- Public build and repository fallback/fixture sources contain no real user-specific source/profile values; approved values remain backend settings only.
 
 ## Live Supabase findings
 
@@ -159,26 +159,26 @@ When complete:
 
 # Step 3 — Remove hardcoded real user/source data safely
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Scan public source/build.
-- [ ] Remove real GitHub/portfolio fallback from public production logic.
-- [ ] Load real source registry from backend.
-- [ ] Keep demo data generic/fake if retained.
-- [ ] Verify signed-out/non-owner cannot read real backend data.
-- [ ] Verify owner dashboard still works.
-- [ ] Re-run leakage scan.
-- [ ] Commit/push.
+- [x] Scan public source/build.
+- [x] Remove real GitHub/portfolio fallback from public production logic.
+- [x] Load real source registry from backend.
+- [x] Keep demo data generic/fake if retained.
+- [x] Verify signed-out/non-owner cannot read real backend data.
+- [x] Verify owner dashboard still works.
+- [x] Re-run leakage scan.
+- [x] Commit/push.
 
 Results:
 
-- Leakage scan:
-- UI regression:
-- Privacy check:
-- Commit:
-- Blockers:
+- Leakage scan: PASS — the exact authorized GitHub/portfolio URL and owner-name markers are absent from `dist/`, SQL fallback defaults, automation docs, and SQL fixtures. Public source/evidence links now render only from the authenticated backend settings state; empty source state remains explicit.
+- UI regression: PASS — signed-out profile rendering shows no source link; the owner fixture renders a backend-provided source; JavaScript syntax checks pass; all 28 repository tests pass.
+- Privacy check: PASS — the dashboard and normalized-data bridge both require the owner session before loading private data. Live read-only verification confirms `user_settings` RLS is enabled, `anon` has zero grants on the protected tables, the owner settings row remains present with 2 approved sources and 8 countries, and no live data was changed.
+- Commit: `98589aa` — Complete Step 3 source privacy hardening; no deployment or merge performed.
+- Blockers: None for Step 3. Step 4 remains not started by request.
 
 When complete:
 
@@ -190,7 +190,7 @@ When complete:
 
 # Step 4 — Add Master CV backend support
 
-Status: **BLOCKED BY STEP 3**
+Status: **NOT STARTED**
 
 Checklist:
 

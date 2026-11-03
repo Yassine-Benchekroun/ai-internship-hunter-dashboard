@@ -162,7 +162,7 @@
         if (source && typeof source === 'object') return source.source_name || source.source_type || source.name || source.source_url || '';
         return '';
       }).filter(Boolean).join(' · ')
-      : 'GitHub · Portfolio';
+      : 'No approved sources loaded';
     return {
       scheduled: true,
       last: formatProfileDate(run.completed_at || run.started_at),
@@ -183,6 +183,59 @@
       '</div>';
   }
 
+  function approvedProfileSources() {
+    return Array.isArray(state.approvedProfileSources)
+      ? state.approvedProfileSources.filter(function (source) {
+        return source && typeof source === 'object' && source.source_type && source.source_name && source.source_url;
+      })
+      : [];
+  }
+
+  function approvedSourceUrl(source) {
+    try {
+      var url = new URL(String(source.source_url || ''));
+      return url.protocol === 'https:' ? url.href : '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function approvedSourceLinksHTML() {
+    var sources = approvedProfileSources();
+    if (!sources.length) return '<span class="muted">Sign in to view approved profile sources.</span>';
+    return sources.map(function (source) {
+      var href = approvedSourceUrl(source);
+      var label = source.source_name || source.source_type || 'Approved source';
+      return href
+        ? '<a class="source-link" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(label) + ' ' + icon('external') + '</a>'
+        : '<span class="source-link muted">' + esc(label) + '</span>';
+    }).join('');
+  }
+
+  function approvedSourcesOverviewHTML() {
+    var sources = approvedProfileSources();
+    return '<div class="section-space"><div class="panel-head"><div><h3>Source registry</h3><div class="panel-kicker">Approved sources loaded from private backend settings.</div></div><span class="pill ' + (sources.length ? 'cyan' : 'yellow') + '">' + (sources.length ? sources.length + ' source' + (sources.length === 1 ? '' : 's') : 'Not configured') + '</span></div><div class="list-stack">' + approvedSourceLinksHTML() + '</div></div>';
+  }
+
+  function safeEvidenceUrl(value) {
+    if (!value) return '';
+    try {
+      var url = new URL(String(value));
+      if (url.protocol !== 'https:') return '';
+      var normalizedPath = url.pathname.replace(/\/+$/, '');
+      var approved = approvedProfileSources().some(function (source) {
+        var sourceUrl = approvedSourceUrl(source);
+        if (!sourceUrl) return false;
+        var base = new URL(sourceUrl);
+        var basePath = base.pathname.replace(/\/+$/, '');
+        return url.origin === base.origin && (!basePath || normalizedPath === basePath || normalizedPath.indexOf(basePath + '/') === 0);
+      });
+      return approved ? url.href : '';
+    } catch (error) {
+      return '';
+    }
+  }
+
   function evidenceHTML(fact) {
     var evidence = Array.isArray(fact.evidence) ? fact.evidence : [];
     if (!evidence.length) return '<span class="phase2-source-missing">No source evidence recorded</span>';
@@ -193,18 +246,6 @@
       var href = safeUrl ? ' href="' + esc(safeUrl) + '" target="_blank" rel="noopener"' : '';
       return '<a class="phase2-evidence"' + href + '>' + esc(label + text) + '</a>';
     }).join(' ');
-  }
-
-  function safeEvidenceUrl(value) {
-    if (!value) return '';
-    try {
-      var url = new URL(String(value));
-      var hostname = url.hostname.toLowerCase();
-      var approvedHost = hostname === 'github.com' || hostname.endsWith('.github.com') || hostname === 'yassine-benchekroun.github.io';
-      return url.protocol === 'https:' && approvedHost ? url.href : '';
-    } catch (error) {
-      return '';
-    }
   }
 
   function profileFactHTML(fact) {
@@ -220,10 +261,15 @@
     ensurePhase2State();
     var grouped = profileFactsByCategory();
     var demoMode = !window.__AIH_OWNER_SESSION;
-    return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', '<a class="btn ghost" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">' + icon('external') + ' Open GitHub</a>') +
+    var sources = approvedProfileSources();
+    var primarySourceUrl = sources.length ? approvedSourceUrl(sources[0]) : '';
+    var profileAction = primarySourceUrl
+      ? '<a class="btn ghost" href="' + esc(primarySourceUrl) + '" target="_blank" rel="noopener">' + icon('external') + ' Open approved source</a>'
+      : '<span class="btn ghost">Approved sources load after owner sign-in</span>';
+    return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', profileAction) +
       (demoMode ? '<div class="notice phase2-demo-notice"><strong>DEMO DATA</strong> · This signed-out preview is not connected to the private profile registry. Empty categories are intentional; no demo fact is presented as verified.</div>' : '') +
       profileSyncHTML() +
-      '<div class="source-banner"><div><h3>Approved sources</h3><div class="panel-kicker">Only GitHub and Portfolio evidence may add profile facts.</div></div><div class="source-links"><a class="source-link" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">GitHub</a><a class="source-link" href="https://yassine-benchekroun.github.io" target="_blank" rel="noopener">Portfolio</a></div></div>' +
+      '<div class="source-banner"><div><h3>Approved sources</h3><div class="panel-kicker">Only backend-approved evidence may add profile facts.</div></div><div class="source-links">' + approvedSourceLinksHTML() + '</div></div>' +
       '<div class="profile-grid phase2-profile-grid">' + profileCategories.map(function (item) { return profileCategoryCard(item[1], grouped[item[0]] || []); }).join('') + '</div>';
   }
 
@@ -235,7 +281,8 @@
   function overviewHTMLPhase2() {
     var html = overviewHTMLOriginal();
     var marker = '<div class="dashboard-grid">';
-    return html.replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + '</div>' + marker);
+    return html.replace('<div id="public-source-registry"></div>', approvedSourcesOverviewHTML())
+      .replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + '</div>' + marker);
   }
 
   function settingsListInput(value) {

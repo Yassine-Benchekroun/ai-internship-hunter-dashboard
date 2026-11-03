@@ -39,6 +39,7 @@ function loadPhase2() {
     console,
     document,
     innerWidth: 1200,
+    URL,
     state,
     window: { __AIH_OWNER_SESSION: null },
     pageIntro: () => '',
@@ -61,7 +62,7 @@ function loadPhase2() {
   };
   vm.createContext(context);
   vm.runInContext(phase2Source, context, { filename: 'phase2-ui.js' });
-  return { api: context.window.AIH_phase2, saveSenderIdentity: context.window.saveSenderIdentity, state };
+  return { api: context.window.AIH_phase2, saveSenderIdentity: context.window.saveSenderIdentity, profileHTML: context.profileHTML, state };
 }
 
 test('score classification uses the threshold boundary', () => {
@@ -152,4 +153,20 @@ test('Step 2 settings UI preserves empty backend source and country values', () 
   assert.match(phase2Source, /id="phase2-target-countries"/);
   assert.match(phase2Source, /id="phase2-approved-sources"/);
   assert.match(phase2Source, /Empty sources and countries remain empty until configured/);
+});
+
+test('owner profile UI renders only backend-provided approved sources', () => {
+  const { profileHTML, state } = loadPhase2();
+  const signedOutHtml = profileHTML();
+  assert.match(signedOutHtml, /Sign in to view approved profile sources/);
+  assert.doesNotMatch(signedOutHtml, /href=/);
+
+  state.approvedProfileSources = [{
+    source_type: 'github',
+    source_name: 'Example profile',
+    source_url: 'https://github.com/example-profile'
+  }];
+  const ownerHtml = profileHTML();
+  assert.match(ownerHtml, /href="https:\/\/github\.com\/example-profile"/);
+  assert.match(ownerHtml, /Example profile/);
 });
