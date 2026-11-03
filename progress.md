@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 4 — Add Master CV backend support**
+**Step 5 — Add Profile Sync endpoint + dry run**
 
 ---
 
@@ -37,8 +37,8 @@ Current step:
 | 1. Reconcile GitHub ↔ Supabase migrations | COMPLETE |
 | 2. Fix authoritative backend settings | COMPLETE |
 | 3. Remove hardcoded real user/source data safely | COMPLETE |
-| 4. Add Master CV backend support | NOT STARTED |
-| 5. Add Profile Sync endpoint + dry run | BLOCKED BY STEP 4 |
+| 4. Add Master CV backend support | COMPLETE |
+| 5. Add Profile Sync endpoint + dry run | NOT STARTED |
 | 6. Verify Opportunity ingestion + dry run | BLOCKED BY STEP 5 |
 | 7. Implement Gmail/provider OAuth | BLOCKED BY STEP 6 |
 | 8. Add Application Monitor endpoint + dry run | BLOCKED BY STEP 7 |
@@ -190,27 +190,27 @@ When complete:
 
 # Step 4 — Add Master CV backend support
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Design minimal Master CV model.
-- [ ] Add ownership/RLS.
-- [ ] Add version/revision support.
-- [ ] Add safe import/save path.
-- [ ] Keep targeted CV versions separate.
-- [ ] Do not fabricate content.
-- [ ] Test owner privacy.
-- [ ] Commit/push.
+- [x] Design minimal Master CV model.
+- [x] Add ownership/RLS.
+- [x] Add version/revision support.
+- [x] Add safe import/save path.
+- [x] Keep targeted CV versions separate.
+- [x] Do not fabricate content.
+- [x] Test owner privacy.
+- [x] Commit/push.
 
 Results:
 
-- Schema:
-- RLS:
-- Import/save:
-- Tests:
-- Commit:
-- Blockers:
+- Schema: PASS — added `public.master_cv_versions` with user ownership, server-controlled revisions, one current revision per user, supplied content/source reference, timestamps, size/material checks, and history indexes. Targeted `public.cv_versions` remains unchanged and opportunity-linked.
+- RLS: PASS — authenticated reads are restricted to `auth.uid() = user_id`; anonymous access and direct authenticated table writes are revoked. The privileged implementation is isolated in `private`, while the public RPC is an invoker wrapper.
+- Import/save: PASS — `public.save_master_cv(jsonb)` accepts only caller-supplied content or source references, rejects client-controlled owner/revision/current fields, validates types and bounds, serializes revision allocation, and never fabricates CV content.
+- Tests: PASS — all 32 repository Node tests, syntax/diff checks, and the rollback-only Supabase owner/non-owner privacy SQL test passed. A follow-up query confirmed the live project has no Step 4 table/functions after rollback; no production schema or data changed.
+- Commit: `c09b462` — Add Master CV backend support.
+- Blockers: None for Step 4. No deployment, merge, schedule, or Step 5 work was performed.
 
 When complete:
 
@@ -222,7 +222,7 @@ When complete:
 
 # Step 5 — Add Profile Sync endpoint + dry run
 
-Status: **BLOCKED BY STEP 4**
+Status: **NOT STARTED**
 
 Checklist:
 
