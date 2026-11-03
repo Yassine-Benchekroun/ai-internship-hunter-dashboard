@@ -246,7 +246,7 @@ Results:
 - Facts/evidence: Controlled approved-source sync recorded 19 verified facts (8 projects and 11 technologies) with 20 evidence rows and 0 review-needed records. The live sources were the configured GitHub profile and portfolio; no content was fabricated and no Master CV content was read or written.
 - Sync log: First live run completed with 19 inserted, 0 updated, 0 duplicates, and 0 errors. Repeating the same payload completed with 0 inserted, 0 updated, 19 duplicates ignored, and 0 errors. A rollback-only `source_missing` assertion passed and left 0 temporary test facts.
 - Tests: PASS — `node --check supabase/functions/sync-profile/index.ts`; all 36 repository Node tests; live pre/post database catalog and row-count verification; deployed function parity; JWT boundary smoke test; fact/evidence counts; duplicate behavior; rollback-only source-missing behavior; no recent email artifacts. Security/performance advisor findings remain the deferred Step 9 findings.
-- Commit: Pending final feature-branch commit at handoff.
+- Commit: `6506cba` — Complete Step 5 profile sync endpoint and dry run.
 - Blockers: None for Step 5. Step 6 is now the current step and remains not started. No schedule, automatic email sending, provider connection, or later-step work was created.
 
 When complete:
