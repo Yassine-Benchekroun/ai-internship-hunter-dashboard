@@ -285,7 +285,7 @@ Results:
 - History: PASS — the first call recorded an `inserted`/`completed` event and the repeat recorded a `duplicate_updated` event; two events existed during verification.
 - Cleanup: PASS — only the exact synthetic test row and its two test events were removed after verification; no applications or artifacts were deleted. Post-cleanup live counts returned to the baseline: `opportunity_records = 0`, `opportunity_ingestion_events = 0`, `cv_versions = 0`, and `email_drafts = 0`.
 - Tests: PASS — Node syntax checks for the server, published bridges, and Edge Function; all 36 repository Node tests; live project status, migrations, RLS/grant catalog checks, function parity, JWT boundary, secret-name presence, ingestion, deduplication, history, artifact, and post-cleanup verification. No schedule or automatic sending was created.
-- Commit: pending — this progress update records the completed Step 6 verification.
+- Commit: `67cef08` — Complete Step 6 opportunity ingestion verification.
 - Blockers: None for Step 6. Step 7 is now current and remains intentionally not started.
 
 When complete:
