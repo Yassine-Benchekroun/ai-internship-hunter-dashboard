@@ -345,6 +345,8 @@
     ensurePhase2State();
     var identity = state.connectedEmail || '';
     var providerConnected = state.providerConnectionStatus === 'connected';
+    var providerStatus = state.providerConnectionStatus;
+    var providerLabel = providerConnected ? 'Connected' : (providerStatus === 'error' ? 'Connection error' : providerStatus === 'revoked' ? 'Access revoked' : 'Not connected');
     var targetOptions = [10, 20, 30, 40];
     if (!targetOptions.includes(state.qualityTarget)) targetOptions.unshift(state.qualityTarget);
     var sourceSummary = state.approvedProfileSources.length
@@ -363,7 +365,7 @@
       '<div class="setting-row"><div><div class="setting-name">Current backend source summary</div><div class="setting-help">' + sourceSummary + '</div></div><button class="btn small primary" onclick="saveBackendSettings()">Save backend settings</button></div></div>' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Email identity & connection</h2><div class="panel-kicker">These are intentionally separate concepts</div></div><span class="pill ' + (providerConnected ? 'green' : 'yellow') + '">' + (providerConnected ? 'Provider connected' : 'Provider not connected') + '</span></div>' +
       '<div class="setting-row phase2-identity-row"><div><div class="setting-name">Sender identity</div><div class="setting-help">Saved address used in drafts. It does not authorize Gmail or another provider.</div></div><div class="phase2-identity-editor"><input id="phase2-sender-email" type="email" value="' + esc(identity) + '" placeholder="you@example.com"/><button class="btn small primary" onclick="saveSenderIdentity()">Save identity</button></div></div>' +
-      '<div class="setting-row"><div><div class="setting-name">Gmail / email API connection</div><div class="setting-help">OAuth/provider authorization has not been configured for this dashboard.</div></div><span class="pill ' + (providerConnected ? 'green' : 'red') + '">' + (providerConnected ? 'Connected' : 'Not connected') + '</span></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Gmail / email API connection</div><div class="setting-help">Read-only Gmail authorization for future mailbox monitoring. Tokens stay backend-only and this never sends email.</div></div><div class="phase2-provider-actions"><span class="pill ' + (providerConnected ? 'green' : providerStatus === 'error' ? 'red' : 'yellow') + '">' + providerLabel + '</span>' + (providerConnected ? '<button class="btn small ghost" onclick="refreshProviderSession()">Refresh session</button><button class="btn small danger" onclick="disconnectProvider()">Disconnect & revoke</button>' : '<button class="btn small primary" onclick="connectProvider()">Connect Gmail</button>') + '</div></div>' +
       '<div class="setting-row"><div><div class="setting-name">Automatic sending</div><div class="setting-help">Always off. Every draft and send action remains explicit.</div></div><span class="pill red">Disabled</span></div></div>' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Data Management</h2><div class="panel-kicker">Permanent actions require explicit confirmation.</div></div><span class="pill yellow">High impact</span></div>' +
       '<div class="setting-row"><div><div class="setting-name">Clear Opportunity History</div><div class="setting-help">Deletes opportunity history only. Application / Sent History stays intact.</div></div><button class="btn small danger" onclick="confirmClearHistory()">' + icon('trash') + ' Clear history</button></div>' +
@@ -375,6 +377,62 @@
       '<div class="phase2-automation"><div class="phase2-automation-num">03</div><div><h3>Application & Email Monitoring</h3><p>Application History → monitor replies → update status → prepare follow-ups</p></div><span class="pill yellow">Not scheduled</span></div>' +
       '<div class="phase2-workflow"><strong>Intended order</strong><span>07:00 Profile Sync</span><span>08:00 Discovery</span><span>Periodic Monitoring</span><em>Times are explanatory placeholders only.</em></div></div>' +
       '</div>';
+  }
+
+  async function runProviderOAuth(action) {
+    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return null;
+    if (typeof window.AIH_providerOAuth !== 'function') {
+      toast('Provider OAuth is not available yet.', true);
+      return null;
+    }
+    try {
+      return await window.AIH_providerOAuth(action);
+    } catch (error) {
+      toast(error && error.message ? error.message : 'Provider OAuth request failed.', true);
+      return null;
+    }
+  }
+
+  async function connectProvider() {
+    var result = await runProviderOAuth('start');
+    if (result && result.authorization_url) window.location.assign(result.authorization_url);
+  }
+
+  async function refreshProviderSession() {
+    var result = await runProviderOAuth('refresh');
+    if (!result) return;
+    try {
+      if (window.AIH_loadBackendSettings) await window.AIH_loadBackendSettings();
+      render();
+      toast('Gmail provider session refreshed.');
+    } catch (error) {
+      toast('The provider refreshed, but Settings could not reload.', true);
+    }
+  }
+
+  function disconnectProvider() {
+    confirmModal('Disconnect Gmail provider?', 'This clears the backend Gmail tokens and asks Google to revoke the provider grant. Sender identity and drafts remain separate.', 'Disconnect & revoke', async function () {
+      var result = await runProviderOAuth('disconnect');
+      if (!result) return;
+      try {
+        if (window.AIH_loadBackendSettings) await window.AIH_loadBackendSettings();
+        render();
+        toast(result.provider_revocation === 'confirmed' ? 'Gmail disconnected and revoked.' : 'Gmail disconnected locally; Google revocation could not be confirmed.', result.provider_revocation !== 'confirmed');
+      } catch (error) {
+        toast('Gmail was disconnected, but Settings could not reload.', true);
+      }
+    });
+  }
+
+  function handleProviderOAuthReturn() {
+    if (!window.location || !window.location.search) return;
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('provider') !== 'gmail' || !params.get('status')) return;
+    var status = params.get('status');
+    if (window.history && window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    if (status === 'connected') toast('Gmail provider connected. Automatic sending remains off.');
+    else if (status === 'denied') toast('Gmail authorization was declined.', true);
+    else toast('Gmail authorization could not be completed.', true);
   }
 
   function saveSenderIdentity() {
@@ -451,12 +509,13 @@
     if (document.getElementById('phase2-styles')) return;
     var style = document.createElement('style');
     style.id = 'phase2-styles';
-    style.textContent = '.phase2-sync-card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(15,31,47,.96),rgba(11,25,39,.96));border-radius:14px;padding:18px;margin-bottom:15px}.phase2-sync-head,.phase2-category-head,.phase2-overview-profile .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.phase2-eyebrow{color:var(--cyan);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.12em}.phase2-sync-head h3{margin:4px 0 0}.phase2-sync-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:15px}.phase2-sync-grid div,.phase2-overview-profile-stats div{border:1px solid var(--line);border-radius:10px;padding:11px;background:rgba(255,255,255,.025)}.phase2-sync-grid span,.phase2-overview-profile-stats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.phase2-sync-grid strong{display:block;color:var(--text);font-size:11px;margin-top:6px;line-height:1.4}.phase2-sync-note{margin-top:12px;color:var(--muted);font-size:10px;line-height:1.5}.phase2-profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase2-category-head h3{margin:0}.phase2-category-head .pill{min-width:24px;text-align:center}.phase2-fact{display:flex;justify-content:space-between;gap:15px;border-top:1px solid var(--line);padding:11px 0}.phase2-fact:first-child{border-top:0;padding-top:0}.phase2-fact-name{font-weight:700;color:var(--text);font-size:11px}.phase2-fact-description,.phase2-fact-evidence,.phase2-fact-meta{color:var(--muted);font-size:9px;line-height:1.45}.phase2-fact-description{margin-top:3px}.phase2-fact-evidence{margin-top:5px}.phase2-fact-meta{min-width:105px;text-align:right}.phase2-status{display:inline-block;border-radius:999px;padding:3px 7px;font-size:8px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.phase2-status.verified{background:rgba(98,220,155,.12);color:var(--green)}.phase2-status.new{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.needs-review{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.source-missing{background:rgba(239,122,132,.12);color:var(--red)}.phase2-source-missing{color:var(--red)}.phase2-evidence{color:var(--cyan);text-decoration:none}.phase2-empty-fact{border-top:1px solid var(--line);padding-top:13px;color:var(--muted);font-size:10px}.phase2-overview-profile-wrap{margin-bottom:15px}.phase2-overview-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.phase2-overview-profile-stats strong{display:block;font-size:20px;color:var(--text);margin-bottom:4px}.phase2-identity-editor{display:flex;gap:7px;align-items:center}.phase2-identity-editor input{width:210px}.phase2-automation{display:grid;grid-template-columns:34px 1fr auto;align-items:start;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}.phase2-automation-num{color:var(--cyan);font-family:ui-monospace,monospace;font-weight:700}.phase2-automation h3{margin:0 0 5px;font-size:12px}.phase2-automation p{margin:0;color:var(--muted);font-size:10px;line-height:1.5}.phase2-workflow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:15px;padding:12px;border:1px dashed var(--line2);border-radius:10px;color:var(--muted);font-size:10px}.phase2-workflow strong{color:var(--text)}.phase2-workflow span{color:var(--cyan)}.phase2-workflow em{width:100%;color:var(--muted);font-size:9px}.phase2-classification{margin-right:4px}.phase2-card-classification{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}.phase2-application-status .phase2-pill-label{color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.05em}.phase2-demo-notice{margin-bottom:15px}.phase2-settings-grid{grid-template-columns:1fr 1fr}.phase2-automation-card{grid-column:1/-1}@media(max-width:800px){.phase2-sync-grid{grid-template-columns:1fr 1fr}.phase2-profile-grid,.phase2-settings-grid{grid-template-columns:1fr}.phase2-automation-card{grid-column:auto}.phase2-fact{display:block}.phase2-fact-meta{text-align:left;margin-top:8px}.phase2-identity-editor{flex-direction:column;align-items:stretch}.phase2-identity-editor input{width:100%}}';
+    style.textContent = '.phase2-sync-card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(15,31,47,.96),rgba(11,25,39,.96));border-radius:14px;padding:18px;margin-bottom:15px}.phase2-sync-head,.phase2-category-head,.phase2-overview-profile .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.phase2-eyebrow{color:var(--cyan);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.12em}.phase2-sync-head h3{margin:4px 0 0}.phase2-sync-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:15px}.phase2-sync-grid div,.phase2-overview-profile-stats div{border:1px solid var(--line);border-radius:10px;padding:11px;background:rgba(255,255,255,.025)}.phase2-sync-grid span,.phase2-overview-profile-stats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.phase2-sync-grid strong{display:block;color:var(--text);font-size:11px;margin-top:6px;line-height:1.4}.phase2-sync-note{margin-top:12px;color:var(--muted);font-size:10px;line-height:1.5}.phase2-profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase2-category-head h3{margin:0}.phase2-category-head .pill{min-width:24px;text-align:center}.phase2-fact{display:flex;justify-content:space-between;gap:15px;border-top:1px solid var(--line);padding:11px 0}.phase2-fact:first-child{border-top:0;padding-top:0}.phase2-fact-name{font-weight:700;color:var(--text);font-size:11px}.phase2-fact-description,.phase2-fact-evidence,.phase2-fact-meta{color:var(--muted);font-size:9px;line-height:1.45}.phase2-fact-description{margin-top:3px}.phase2-fact-evidence{margin-top:5px}.phase2-fact-meta{min-width:105px;text-align:right}.phase2-status{display:inline-block;border-radius:999px;padding:3px 7px;font-size:8px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.phase2-status.verified{background:rgba(98,220,155,.12);color:var(--green)}.phase2-status.new{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.needs-review{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.source-missing{background:rgba(239,122,132,.12);color:var(--red)}.phase2-source-missing{color:var(--red)}.phase2-evidence{color:var(--cyan);text-decoration:none}.phase2-empty-fact{border-top:1px solid var(--line);padding-top:13px;color:var(--muted);font-size:10px}.phase2-overview-profile-wrap{margin-bottom:15px}.phase2-overview-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.phase2-overview-profile-stats strong{display:block;font-size:20px;color:var(--text);margin-bottom:4px}.phase2-identity-editor{display:flex;gap:7px;align-items:center}.phase2-identity-editor input{width:210px}.phase2-provider-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.phase2-automation{display:grid;grid-template-columns:34px 1fr auto;align-items:start;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}.phase2-automation-num{color:var(--cyan);font-family:ui-monospace,monospace;font-weight:700}.phase2-automation h3{margin:0 0 5px;font-size:12px}.phase2-automation p{margin:0;color:var(--muted);font-size:10px;line-height:1.5}.phase2-workflow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:15px;padding:12px;border:1px dashed var(--line2);border-radius:10px;color:var(--muted);font-size:10px}.phase2-workflow strong{color:var(--text)}.phase2-workflow span{color:var(--cyan)}.phase2-workflow em{width:100%;color:var(--muted);font-size:9px}.phase2-classification{margin-right:4px}.phase2-card-classification{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}.phase2-application-status .phase2-pill-label{color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.05em}.phase2-demo-notice{margin-bottom:15px}.phase2-settings-grid{grid-template-columns:1fr 1fr}.phase2-automation-card{grid-column:1/-1}@media(max-width:800px){.phase2-sync-grid{grid-template-columns:1fr 1fr}.phase2-profile-grid,.phase2-settings-grid{grid-template-columns:1fr}.phase2-automation-card{grid-column:auto}.phase2-fact{display:block}.phase2-fact-meta{text-align:left;margin-top:8px}.phase2-identity-editor{flex-direction:column;align-items:stretch}.phase2-identity-editor input{width:100%}.phase2-provider-actions{justify-content:flex-start}}';
     document.head.appendChild(style);
   }
 
   ensurePhase2State();
   injectPhase2Styles();
+  handleProviderOAuthReturn();
 
   var overviewHTMLOriginal = overviewHTML;
   overviewHTML = overviewHTMLPhase2;
@@ -474,6 +533,9 @@
   toggleConnection = function () { navigate('settings'); toast('Sender identity and provider connection are managed separately in Settings.'); };
   window.saveSenderIdentity = saveSenderIdentity;
   window.saveBackendSettings = saveBackendSettings;
+  window.connectProvider = connectProvider;
+  window.refreshProviderSession = refreshProviderSession;
+  window.disconnectProvider = disconnectProvider;
   window.AIH_phase2 = {
     classify: function (opportunity) { applyScoreClassification(opportunity); return opportunity; },
     reclassifySent: reclassifySentOpportunities,

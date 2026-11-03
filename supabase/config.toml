@@ -4,3 +4,9 @@ verify_jwt = true
 
 [functions.sync-profile]
 verify_jwt = true
+
+# The OAuth callback is redirected from Google without a Supabase JWT. The
+# function validates Supabase JWTs itself for user actions and consumes a
+# single-use hashed state for the callback.
+[functions.provider-oauth]
+verify_jwt = false

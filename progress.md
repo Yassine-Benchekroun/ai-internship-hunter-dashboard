@@ -298,30 +298,30 @@ When complete:
 
 # Step 7 — Implement Gmail/provider OAuth
 
-Status: **NOT STARTED**
+Status: **BLOCKED — local implementation complete; live provider authorization not authorized/configured**
 
 Checklist:
 
-- [ ] Implement secure OAuth/provider flow.
-- [ ] Keep provider secrets/tokens backend-only.
-- [ ] Keep dashboard Auth separate.
-- [ ] Keep sender identity separate.
-- [ ] Support connection states.
-- [ ] Keep automatic sending OFF.
+- [x] Implement secure OAuth/provider flow.
+- [x] Keep provider secrets/tokens backend-only.
+- [x] Keep dashboard Auth separate.
+- [x] Keep sender identity separate.
+- [x] Support connection states.
+- [x] Keep automatic sending OFF.
 - [ ] Test connect.
 - [ ] Test disconnect/revoke.
 - [ ] Test refresh/session behavior.
-- [ ] Verify no token leakage.
-- [ ] Commit/push.
+- [x] Verify no token leakage.
+- [x] Commit/push local implementation.
 
 Results:
 
-- Provider:
-- OAuth:
-- Token privacy:
-- Tests:
-- Commit:
-- Blockers:
+- Provider: Local Step 7 implementation uses Gmail read-only scope `https://www.googleapis.com/auth/gmail.readonly`; it does not request `gmail.send`, `gmail.compose`, `gmail.modify`, or `mail.google.com`. Sender identity remains separate from provider authorization, and automatic sending remains disabled.
+- OAuth: Added `provider-oauth` with manual Supabase JWT validation for authenticated actions, one-time SHA-256 state binding for the Google callback, offline access, backend refresh, disconnect/revoke, and safe status-only responses. Added private OAuth-state/provider-token tables and service-role-only RPC wrappers; browser roles cannot read or execute token paths.
+- Token privacy: Google client values and token material are read only from backend Edge Function environment variables. No token or secret values are in public assets, the public settings row, or responses. The private `master_cv.pdf` remains untracked and was not staged or modified.
+- Tests: PASS — `node --check` for server, bridge, UI, and `provider-oauth`; all 39 repository Node tests; `git diff --check`; public-asset token/secret scan with no matches. Live read-only pre/post verification confirmed the production project remains unchanged: no Step 7 migration, private provider tables/RPCs, or Edge Function was applied/deployed; existing row counts, functions, and advisor findings remain unchanged.
+- Commit: `01efd0c` — Implement backend-only Gmail provider OAuth. This preserves the current Step 7 blocker; it does not claim live provider verification or production deployment.
+- Blockers: Live connect, disconnect/revoke, and refresh/session tests cannot be claimed because `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and an exact authorized `OAUTH_REDIRECT_URI` are not configured here, and production migration/function deployment was not explicitly authorized. No production change, provider connection, schedule, or automatic email sending was created.
 
 When complete:
 
