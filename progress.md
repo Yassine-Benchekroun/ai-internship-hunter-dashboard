@@ -146,8 +146,8 @@ Results:
 - Sources: Live `approved_profile_sources` now contains the explicitly authorized GitHub and portfolio values from the repository.
 - Countries: Live `target_countries` now contains the explicitly authorized repository country list.
 - Tests: PASS — Node syntax checks; all 23 repository/UI/backend tests; local `/api/settings` load-save-refresh; live Supabase read-before/write/read-back verification. Sender identity remains separate from provider status `not_connected`.
-- Commit: `93c72d8` — Complete Step 2 backend settings after rebasing onto the newer feature branch history. Pushed through `005e27b`; no merge to main or deployment performed.
-- Blockers: None for Step 2. The remote feature branch’s newer commits were preserved; Step 3 remains intentionally not started.
+- Commit: `68da3b7` — Complete Step 2 backend settings with the unrelated watcher commit removed. The feature branch is ready for a force-with-lease update; no merge to main or deployment performed.
+- Blockers: None for Step 2. The watcher commit was removed without changing Step 1 or Step 2 files; Step 3 remains intentionally not started.
 
 When complete:
 
