@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 6 — Verify Opportunity ingestion + dry run**
+**Step 7 — Implement Gmail/provider OAuth**
 
 ---
 
@@ -39,8 +39,8 @@ Current step:
 | 3. Remove hardcoded real user/source data safely | COMPLETE |
 | 4. Add Master CV backend support | COMPLETE |
 | 5. Add Profile Sync endpoint + dry run | COMPLETE |
-| 6. Verify Opportunity ingestion + dry run | NOT STARTED |
-| 7. Implement Gmail/provider OAuth | BLOCKED BY STEP 6 |
+| 6. Verify Opportunity ingestion + dry run | COMPLETE |
+| 7. Implement Gmail/provider OAuth | NOT STARTED |
 | 8. Add Application Monitor endpoint + dry run | BLOCKED BY STEP 7 |
 | 9. Add run-health visibility + Supabase cleanup | BLOCKED BY STEP 8 |
 | 10. Final pre-schedule audit | BLOCKED BY STEP 9 |
@@ -259,32 +259,34 @@ When complete:
 
 # Step 6 — Verify Opportunity ingestion + dry run
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Compare repository/live Edge Function.
-- [ ] Verify JWT protection.
-- [ ] Verify private secret configuration without revealing values.
-- [ ] Ingest one controlled test opportunity.
-- [ ] Verify normalized row.
-- [ ] Verify score/classification.
-- [ ] Verify history.
-- [ ] Repeat same opportunity.
-- [ ] Verify deduplication.
-- [ ] Verify ingestion event.
-- [ ] Verify CV/email artifacts if supplied.
-- [ ] Commit only if changes required.
+- [x] Compare repository/live Edge Function.
+- [x] Verify JWT protection.
+- [x] Verify private secret configuration without revealing values.
+- [x] Ingest one controlled test opportunity.
+- [x] Verify normalized row.
+- [x] Verify score/classification.
+- [x] Verify history.
+- [x] Repeat same opportunity.
+- [x] Verify deduplication.
+- [x] Verify ingestion event.
+- [x] Verify CV/email artifacts if supplied.
+- [x] Commit only if changes required.
 
 Results:
 
-- Function parity:
-- Ingestion:
-- Deduplication:
-- History:
-- Tests:
-- Commit:
-- Blockers:
+- Function parity: PASS — local `supabase/functions/ingest-opportunities/index.ts` matches the live `ingest-opportunities` source after line-ending normalization; live version 5 has `verify_jwt = true`. The source keeps the privileged key and owner scope server-side and calls only `automation_ingest_opportunities`.
+- JWT and private configuration: PASS — unauthenticated browser request was rejected at the platform boundary with `UNAUTHORIZED_NO_AUTH_HEADER`; the read-only Functions Secrets view showed configured custom secret names `INGEST_API_KEY` and `INGEST_OWNER_USER_ID`, while the reserved `SUPABASE_SECRET_KEYS` name is available. Secret values and digests were not copied or exposed.
+- Ingestion: PASS — live service-role ingestion contract dry run inserted one synthetic controlled opportunity with a normalized source URL, score `68`, and classification `lower` against the live threshold `70`. The record had `application_status = not_sent` and no CV/email artifacts.
+- Deduplication: PASS — repeating the same organization/position/source key reused the single row, returned `duplicate_count = 1`, preserved `first_discovered_at`, and updated the score to `74` with classification `top`.
+- History: PASS — the first call recorded an `inserted`/`completed` event and the repeat recorded a `duplicate_updated` event; two events existed during verification.
+- Cleanup: PASS — only the exact synthetic test row and its two test events were removed after verification; no applications or artifacts were deleted. Post-cleanup live counts returned to the baseline: `opportunity_records = 0`, `opportunity_ingestion_events = 0`, `cv_versions = 0`, and `email_drafts = 0`.
+- Tests: PASS — Node syntax checks for the server, published bridges, and Edge Function; all 36 repository Node tests; live project status, migrations, RLS/grant catalog checks, function parity, JWT boundary, secret-name presence, ingestion, deduplication, history, artifact, and post-cleanup verification. No schedule or automatic sending was created.
+- Commit: pending — this progress update records the completed Step 6 verification.
+- Blockers: None for Step 6. Step 7 is now current and remains intentionally not started.
 
 When complete:
 
@@ -296,7 +298,7 @@ When complete:
 
 # Step 7 — Implement Gmail/provider OAuth
 
-Status: **BLOCKED BY STEP 6**
+Status: **NOT STARTED**
 
 Checklist:
 
