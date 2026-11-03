@@ -36,8 +36,11 @@ Run `supabase-schema.sql` first, then run the migration files in timestamp order
 11. `supabase/migrations/20261028211000_phase3_event_conflict_fix.sql`
 12. `supabase/migrations/20261028211500_phase3_artifact_ambiguity_fix.sql`
 13. `supabase/migrations/20261028230000_phase4_browser_contract_hardening.sql`
+14. `supabase/migrations/20261029220000_step1_auth_ownership_foundation.sql`
+15. `supabase/migrations/20261030200000_step2_privacy_hardening.sql`
+16. `supabase/migrations/20261103000000_step4_master_cv.sql`
 
-These migrations create the normalized `opportunity_records` table with owner-only RLS, deterministic deduplication, independent application status, profile evidence, versioned artifacts, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
+These migrations create the normalized `opportunity_records` table with owner-only RLS, deterministic deduplication, independent application status, profile evidence, versioned targeted artifacts, canonical Master CV revisions, settings, and ingestion audit history. They are additive and preserve existing opportunity and application rows.
 
 Phase 3 adds service-role-only RPC contracts for settings, Verified Profile Sync, opportunity ingestion, and Application Monitoring. The existing `ingest-opportunities` Edge Function source is tracked under `supabase/functions/ingest-opportunities/`; its platform JWT verification and private API-key check keep privileged writes server-side. No schedule or automatic email sender is created.
 
@@ -52,6 +55,8 @@ Phase 2 behavior tests can be run with `node --test tests/phase2_ui.test.mjs`.
 The Phase 3 contracts and payloads are documented in `docs/automation-contracts.md`. The rollback-safe SQL contract tests are in `supabase/tests/phase3_automation_interfaces.sql` and require a privileged Supabase SQL test session.
 
 The production migration/version mapping is tracked in `docs/supabase-migration-ledger.md` because the managed migration service assigns production timestamps when migrations are applied.
+
+The Master CV backend contract is documented in `docs/master-cv-contract.md`; its rollback-safe owner-privacy test is `supabase/tests/step4_master_cv.sql`.
 
 ## GitHub Pages
 

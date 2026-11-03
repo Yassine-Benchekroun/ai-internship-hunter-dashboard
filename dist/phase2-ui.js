@@ -24,10 +24,12 @@
     // dashboard payloads used `connected` for sender identity only.
     state.connected = state.providerConnectionStatus === 'connected';
     state.emailProvider = state.emailProvider || '';
+    state.countries = Array.isArray(state.countries) ? state.countries : [];
+    state.approvedProfileSources = Array.isArray(state.approvedProfileSources) ? state.approvedProfileSources : [];
     state.domainRelevanceEnabled = state.domainRelevanceEnabled !== false;
-    state.opportunityTypes = Array.isArray(state.opportunityTypes) && state.opportunityTypes.length
-      ? state.opportunityTypes
-      : ['internship', 'research'];
+    state.opportunityTypes = Array.isArray(state.opportunityTypes) ? state.opportunityTypes : ['internship', 'research'];
+    state.qualityTarget = Number.isFinite(Number(state.qualityTarget)) ? Math.max(0, Math.min(1000, Math.round(Number(state.qualityTarget)))) : 30;
+    state.senderIdentityName = typeof state.senderIdentityName === 'string' ? state.senderIdentityName : '';
   }
 
   function thresholdValue() {
@@ -160,7 +162,7 @@
         if (source && typeof source === 'object') return source.source_name || source.source_type || source.name || source.source_url || '';
         return '';
       }).filter(Boolean).join(' · ')
-      : 'GitHub · Portfolio';
+      : 'No approved sources loaded';
     return {
       scheduled: true,
       last: formatProfileDate(run.completed_at || run.started_at),
@@ -181,6 +183,59 @@
       '</div>';
   }
 
+  function approvedProfileSources() {
+    return Array.isArray(state.approvedProfileSources)
+      ? state.approvedProfileSources.filter(function (source) {
+        return source && typeof source === 'object' && source.source_type && source.source_name && source.source_url;
+      })
+      : [];
+  }
+
+  function approvedSourceUrl(source) {
+    try {
+      var url = new URL(String(source.source_url || ''));
+      return url.protocol === 'https:' ? url.href : '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function approvedSourceLinksHTML() {
+    var sources = approvedProfileSources();
+    if (!sources.length) return '<span class="muted">Sign in to view approved profile sources.</span>';
+    return sources.map(function (source) {
+      var href = approvedSourceUrl(source);
+      var label = source.source_name || source.source_type || 'Approved source';
+      return href
+        ? '<a class="source-link" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(label) + ' ' + icon('external') + '</a>'
+        : '<span class="source-link muted">' + esc(label) + '</span>';
+    }).join('');
+  }
+
+  function approvedSourcesOverviewHTML() {
+    var sources = approvedProfileSources();
+    return '<div class="section-space"><div class="panel-head"><div><h3>Source registry</h3><div class="panel-kicker">Approved sources loaded from private backend settings.</div></div><span class="pill ' + (sources.length ? 'cyan' : 'yellow') + '">' + (sources.length ? sources.length + ' source' + (sources.length === 1 ? '' : 's') : 'Not configured') + '</span></div><div class="list-stack">' + approvedSourceLinksHTML() + '</div></div>';
+  }
+
+  function safeEvidenceUrl(value) {
+    if (!value) return '';
+    try {
+      var url = new URL(String(value));
+      if (url.protocol !== 'https:') return '';
+      var normalizedPath = url.pathname.replace(/\/+$/, '');
+      var approved = approvedProfileSources().some(function (source) {
+        var sourceUrl = approvedSourceUrl(source);
+        if (!sourceUrl) return false;
+        var base = new URL(sourceUrl);
+        var basePath = base.pathname.replace(/\/+$/, '');
+        return url.origin === base.origin && (!basePath || normalizedPath === basePath || normalizedPath.indexOf(basePath + '/') === 0);
+      });
+      return approved ? url.href : '';
+    } catch (error) {
+      return '';
+    }
+  }
+
   function evidenceHTML(fact) {
     var evidence = Array.isArray(fact.evidence) ? fact.evidence : [];
     if (!evidence.length) return '<span class="phase2-source-missing">No source evidence recorded</span>';
@@ -191,18 +246,6 @@
       var href = safeUrl ? ' href="' + esc(safeUrl) + '" target="_blank" rel="noopener"' : '';
       return '<a class="phase2-evidence"' + href + '>' + esc(label + text) + '</a>';
     }).join(' ');
-  }
-
-  function safeEvidenceUrl(value) {
-    if (!value) return '';
-    try {
-      var url = new URL(String(value));
-      var hostname = url.hostname.toLowerCase();
-      var approvedHost = hostname === 'github.com' || hostname.endsWith('.github.com') || hostname === 'yassine-benchekroun.github.io';
-      return url.protocol === 'https:' && approvedHost ? url.href : '';
-    } catch (error) {
-      return '';
-    }
   }
 
   function profileFactHTML(fact) {
@@ -218,10 +261,15 @@
     ensurePhase2State();
     var grouped = profileFactsByCategory();
     var demoMode = !window.__AIH_OWNER_SESSION;
-    return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', '<a class="btn ghost" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">' + icon('external') + ' Open GitHub</a>') +
+    var sources = approvedProfileSources();
+    var primarySourceUrl = sources.length ? approvedSourceUrl(sources[0]) : '';
+    var profileAction = primarySourceUrl
+      ? '<a class="btn ghost" href="' + esc(primarySourceUrl) + '" target="_blank" rel="noopener">' + icon('external') + ' Open approved source</a>'
+      : '<span class="btn ghost">Approved sources load after owner sign-in</span>';
+    return pageIntro('Source of truth', 'Verified Profile Registry', 'The registry is the only source allowed to supply factual claims to CVs and emails.', profileAction) +
       (demoMode ? '<div class="notice phase2-demo-notice"><strong>DEMO DATA</strong> · This signed-out preview is not connected to the private profile registry. Empty categories are intentional; no demo fact is presented as verified.</div>' : '') +
       profileSyncHTML() +
-      '<div class="source-banner"><div><h3>Approved sources</h3><div class="panel-kicker">Only GitHub and Portfolio evidence may add profile facts.</div></div><div class="source-links"><a class="source-link" href="https://github.com/Yassine-Benchekroun" target="_blank" rel="noopener">GitHub</a><a class="source-link" href="https://yassine-benchekroun.github.io" target="_blank" rel="noopener">Portfolio</a></div></div>' +
+      '<div class="source-banner"><div><h3>Approved sources</h3><div class="panel-kicker">Only backend-approved evidence may add profile facts.</div></div><div class="source-links">' + approvedSourceLinksHTML() + '</div></div>' +
       '<div class="profile-grid phase2-profile-grid">' + profileCategories.map(function (item) { return profileCategoryCard(item[1], grouped[item[0]] || []); }).join('') + '</div>';
   }
 
@@ -233,7 +281,62 @@
   function overviewHTMLPhase2() {
     var html = overviewHTMLOriginal();
     var marker = '<div class="dashboard-grid">';
-    return html.replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + '</div>' + marker);
+    return html.replace('<div id="public-source-registry"></div>', approvedSourcesOverviewHTML())
+      .replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + '</div>' + marker);
+  }
+
+  function settingsListInput(value) {
+    return Array.isArray(value) ? value.join(', ') : '';
+  }
+
+  function parseSettingsList(value) {
+    return String(value || '').split(/[\n,]/).map(function (item) { return item.trim(); }).filter(Boolean);
+  }
+
+  function parseApprovedSources(value) {
+    var raw = String(value || '').trim();
+    if (!raw) return [];
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error('Approved profile sources must be valid JSON.');
+    }
+    if (!Array.isArray(parsed)) throw new Error('Approved profile sources must be a JSON array.');
+    return parsed.map(function (source) {
+      if (!source || typeof source !== 'object') throw new Error('Each approved profile source must be an object.');
+      var normalized = {
+        source_type: String(source.source_type || '').trim(),
+        source_name: String(source.source_name || '').trim(),
+        source_url: String(source.source_url || '').trim()
+      };
+      if (!normalized.source_type || !normalized.source_name || !normalized.source_url) {
+        throw new Error('Each approved profile source needs a type, name, and URL.');
+      }
+      return normalized;
+    });
+  }
+
+  function saveBackendSettings() {
+    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
+    var countries = document.getElementById('phase2-target-countries');
+    var types = document.getElementById('phase2-opportunity-types');
+    var domain = document.getElementById('phase2-domain-relevance');
+    var sources = document.getElementById('phase2-approved-sources');
+    var parsedSources;
+    try {
+      parsedSources = parseApprovedSources(sources ? sources.value : '[]');
+    } catch (error) {
+      toast(error.message, true);
+      return;
+    }
+    state.countries = parseSettingsList(countries && countries.value);
+    state.opportunityTypes = parseSettingsList(types && types.value);
+    state.domainRelevanceEnabled = !domain || domain.value === 'enabled';
+    state.approvedProfileSources = parsedSources;
+    persist();
+    render();
+    toast('Backend settings saved. Empty sources and countries remain empty until configured.');
   }
 
   // This is the single authoritative Settings renderer. index.html keeps only
@@ -242,12 +345,22 @@
     ensurePhase2State();
     var identity = state.connectedEmail || '';
     var providerConnected = state.providerConnectionStatus === 'connected';
+    var targetOptions = [10, 20, 30, 40];
+    if (!targetOptions.includes(state.qualityTarget)) targetOptions.unshift(state.qualityTarget);
+    var sourceSummary = state.approvedProfileSources.length
+      ? state.approvedProfileSources.map(function (source) { return esc(source.source_name) + ' · ' + esc(source.source_url); }).join('<br/>')
+      : 'No approved profile sources configured.';
     return pageIntro('Control room', 'Settings', 'Tune matching and data safeguards. Future automations are placeholders only; no schedules have been created.', '') +
       '<div class="settings-grid phase2-settings-grid">' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Matching & discovery</h2><div class="panel-kicker">Quality over quota</div></div><span class="pill cyan">Manual control</span></div>' +
       '<div class="setting-row"><div><div class="setting-name">Match threshold</div><div class="setting-help">Scores at or above this value are Top Matches. Lower scores remain valid and reviewable.</div></div><div class="range-row"><input type="range" min="50" max="90" step="1" value="' + thresholdValue() + '" oninput="setThreshold(this.value)"/><span class="range-value">' + thresholdValue() + '</span></div></div>' +
-      '<div class="setting-row"><div><div class="setting-name">Daily target</div><div class="setting-help">A ceiling for future discovery; never a reason to lower quality.</div></div><select class="select" onchange="state.qualityTarget=Number(this.value);persist();toast(\'Daily target updated\')">' + [10, 20, 30, 40].map(function (value) { return '<option ' + (state.qualityTarget === value ? 'selected' : '') + '>' + value + ' opportunities</option>'; }).join('') + '</select></div>' +
-      '<div class="setting-row"><div><div class="setting-name">Domain relevance filter</div><div class="setting-help">Unrelated opportunities are filtered before scoring.</div></div><span class="pill ' + (state.domainRelevanceEnabled ? 'green">Enabled' : 'red">Disabled') + '</span></div></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Daily target</div><div class="setting-help">A ceiling for future discovery; never a reason to lower quality.</div></div><select class="select" onchange="state.qualityTarget=Number(this.value);persist();toast(\'Daily target updated\')">' + targetOptions.map(function (value) { return '<option ' + (state.qualityTarget === value ? 'selected' : '') + '>' + value + ' opportunities</option>'; }).join('') + '</select></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Domain relevance filter</div><div class="setting-help">Unrelated opportunities are filtered before scoring.</div></div><select id="phase2-domain-relevance" class="select"><option value="enabled" ' + (state.domainRelevanceEnabled ? 'selected' : '') + '>Enabled</option><option value="disabled" ' + (!state.domainRelevanceEnabled ? 'selected' : '') + '>Disabled</option></select></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Opportunity types</div><div class="setting-help">Stored in backend settings and used by future discovery.</div></div><input id="phase2-opportunity-types" class="input" value="' + esc(settingsListInput(state.opportunityTypes)) + '" placeholder="internship, research"/></div></div>' +
+      '<div class="setting-card"><div class="panel-head"><div><h2>Approved sources & countries</h2><div class="panel-kicker">Backend-authoritative values; no choices are invented.</div></div><span class="pill ' + (state.approvedProfileSources.length ? 'cyan' : 'yellow') + '">' + (state.approvedProfileSources.length ? state.approvedProfileSources.length + ' source' + (state.approvedProfileSources.length === 1 ? '' : 's') : 'Sources not configured') + '</span></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Target countries</div><div class="setting-help">Leave blank until approved countries are provided.</div></div><textarea id="phase2-target-countries" class="input" rows="3" placeholder="One country per line or comma-separated">' + esc(settingsListInput(state.countries)) + '</textarea></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Approved profile sources</div><div class="setting-help">Leave as [] until approved source values are provided. JSON fields: source_type, source_name, source_url.</div></div><textarea id="phase2-approved-sources" class="input" rows="6" spellcheck="false">' + esc(JSON.stringify(state.approvedProfileSources, null, 2)) + '</textarea></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Current backend source summary</div><div class="setting-help">' + sourceSummary + '</div></div><button class="btn small primary" onclick="saveBackendSettings()">Save backend settings</button></div></div>' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Email identity & connection</h2><div class="panel-kicker">These are intentionally separate concepts</div></div><span class="pill ' + (providerConnected ? 'green' : 'yellow') + '">' + (providerConnected ? 'Provider connected' : 'Provider not connected') + '</span></div>' +
       '<div class="setting-row phase2-identity-row"><div><div class="setting-name">Sender identity</div><div class="setting-help">Saved address used in drafts. It does not authorize Gmail or another provider.</div></div><div class="phase2-identity-editor"><input id="phase2-sender-email" type="email" value="' + esc(identity) + '" placeholder="you@example.com"/><button class="btn small primary" onclick="saveSenderIdentity()">Save identity</button></div></div>' +
       '<div class="setting-row"><div><div class="setting-name">Gmail / email API connection</div><div class="setting-help">OAuth/provider authorization has not been configured for this dashboard.</div></div><span class="pill ' + (providerConnected ? 'green' : 'red') + '">' + (providerConnected ? 'Connected' : 'Not connected') + '</span></div>' +
@@ -273,12 +386,9 @@
       return;
     }
     state.connectedEmail = email;
-    state.connected = false;
-    state.emailProviderConnected = false;
-    state.providerConnectionStatus = 'not_connected';
     persist();
     render();
-    toast(email ? 'Sender identity saved. Provider remains not connected.' : 'Sender identity cleared.');
+    toast(email ? 'Sender identity saved. Provider connection unchanged.' : 'Sender identity cleared.');
   }
 
   function setThresholdPhase2(value) {
@@ -363,6 +473,7 @@
   };
   toggleConnection = function () { navigate('settings'); toast('Sender identity and provider connection are managed separately in Settings.'); };
   window.saveSenderIdentity = saveSenderIdentity;
+  window.saveBackendSettings = saveBackendSettings;
   window.AIH_phase2 = {
     classify: function (opportunity) { applyScoreClassification(opportunity); return opportunity; },
     reclassifySent: reclassifySentOpportunities,
