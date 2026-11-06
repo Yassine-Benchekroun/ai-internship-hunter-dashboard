@@ -257,13 +257,13 @@ as $$ select private.provider_oauth_mark_error_impl($1, $2); $$;
 revoke all on function private.provider_oauth_begin_impl(uuid, text, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.provider_oauth_consume_impl(text) from public, anon, authenticated;
 revoke all on function private.provider_oauth_get_connection_impl(uuid) from public, anon, authenticated;
-revoke all on function private.provider_oauth_store_connection(uuid, text, text, text, text, text, text[], timestamptz) from public, anon, authenticated;
+revoke all on function private.provider_oauth_store_connection_impl(uuid, text, text, text, text, text, text[], timestamptz) from public, anon, authenticated;
 revoke all on function private.provider_oauth_revoke_connection_impl(uuid) from public, anon, authenticated;
 revoke all on function private.provider_oauth_mark_error_impl(uuid, text) from public, anon, authenticated;
 grant execute on function private.provider_oauth_begin_impl(uuid, text, text, text, timestamptz) to service_role;
 grant execute on function private.provider_oauth_consume_impl(text) to service_role;
 grant execute on function private.provider_oauth_get_connection_impl(uuid) to service_role;
-grant execute on function private.provider_oauth_store_connection(uuid, text, text, text, text, text, text[], timestamptz) to service_role;
+grant execute on function private.provider_oauth_store_connection_impl(uuid, text, text, text, text, text, text[], timestamptz) to service_role;
 grant execute on function private.provider_oauth_revoke_connection_impl(uuid) to service_role;
 grant execute on function private.provider_oauth_mark_error_impl(uuid, text) to service_role;
 

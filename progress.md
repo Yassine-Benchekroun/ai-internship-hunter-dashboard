@@ -40,7 +40,7 @@ Current step:
 | 4. Add Master CV backend support | COMPLETE |
 | 5. Add Profile Sync endpoint + dry run | COMPLETE |
 | 6. Verify Opportunity ingestion + dry run | COMPLETE |
-| 7. Implement Gmail/provider OAuth | NOT STARTED |
+| 7. Implement Gmail/provider OAuth | BLOCKED — live deployment complete; real account authorization tests pending |
 | 8. Add Application Monitor endpoint + dry run | BLOCKED BY STEP 7 |
 | 9. Add run-health visibility + Supabase cleanup | BLOCKED BY STEP 8 |
 | 10. Final pre-schedule audit | BLOCKED BY STEP 9 |
@@ -298,7 +298,7 @@ When complete:
 
 # Step 7 — Implement Gmail/provider OAuth
 
-Status: **BLOCKED — local implementation complete; live provider authorization not authorized/configured**
+Status: **BLOCKED — live deployment complete; real account authorization tests pending**
 
 Checklist:
 
@@ -308,6 +308,8 @@ Checklist:
 - [x] Keep sender identity separate.
 - [x] Support connection states.
 - [x] Keep automatic sending OFF.
+- [x] Apply the Step 7 migration to live Supabase.
+- [x] Deploy the `provider-oauth` Edge Function.
 - [ ] Test connect.
 - [ ] Test disconnect/revoke.
 - [ ] Test refresh/session behavior.
@@ -320,8 +322,9 @@ Results:
 - OAuth: Added `provider-oauth` with manual Supabase JWT validation for authenticated actions, one-time SHA-256 state binding for the Google callback, offline access, backend refresh, disconnect/revoke, and safe status-only responses. Added private OAuth-state/provider-token tables and service-role-only RPC wrappers; browser roles cannot read or execute token paths.
 - Token privacy: Google client values and token material are read only from backend Edge Function environment variables. No token or secret values are in public assets, the public settings row, or responses. The private `master_cv.pdf` remains untracked and was not staged or modified.
 - Tests: PASS — `node --check` for server, bridge, UI, and `provider-oauth`; all 39 repository Node tests; `git diff --check`; public-asset token/secret scan with no matches. Live read-only pre/post verification confirmed the production project remains unchanged: no Step 7 migration, private provider tables/RPCs, or Edge Function was applied/deployed; existing row counts, functions, and advisor findings remain unchanged.
+- Continuation verification: PASS — on 2026-11-06, all 39 repository tests, server/bridge/UI/Edge Function syntax checks, `git diff --check`, and the targeted public-asset secret scan passed. The repository has no `package.json`, so `npm test` is not an available runner; the direct Node test runner is the passing test command. Before production changes, the project was `ACTIVE_HEALTHY` with no Step 7 migration, provider tables/RPCs, or OAuth function; the failed first migration attempt rolled back with no partial state. The minimal checked-in SQL correction fixed the `provider_oauth_store_connection_impl` permission signature. The authorized migration then applied successfully as managed version `20261106115834` (`step7_provider_oauth`), with both private tables RLS-enabled, six public RPC wrappers, and zero provider token/state rows. `provider-oauth` deployed as live version 1 with `verify_jwt = false`; the deployed source matches the checked-in entrypoint exactly. Boundary smoke tests returned `400` for a callback without state, `200` for CORS preflight, and `401` for an unauthenticated action. The rollback-only live RLS/privilege assertions passed. Opportunity/application/draft counts remain zero; no automatic sending or schedule was created.
 - Commit: `cb43c0f` — Implement backend-only Gmail provider OAuth. This preserves the current Step 7 blocker; it does not claim live provider verification or production deployment.
-- Blockers: Live connect, disconnect/revoke, and refresh/session tests cannot be claimed because `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and an exact authorized `OAUTH_REDIRECT_URI` are not configured here, and production migration/function deployment was not explicitly authorized. No production change, provider connection, schedule, or automatic email sending was created.
+- Blockers: Live connect, disconnect/revoke, and refresh/session tests remain unclaimed because they require a real signed-in dashboard session and Google consent for the user's Gmail account. The deployed function is configured: its callback boundary returned `400 OAuth callback is missing state` rather than `503 Provider OAuth is not configured`. No provider connection or token was created, and no automatic sending or schedule was created. Step 7 must remain blocked until the account-authorization lifecycle is explicitly tested.
 
 When complete:
 
