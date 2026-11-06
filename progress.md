@@ -371,7 +371,7 @@ Results:
 - Boundary smoke tests: PASS — live CORS preflight returned `200`; unauthenticated POST returned `401 UNAUTHORIZED_NO_AUTH_HEADER`.
 - Local tests: PASS — all 43 repository Node tests; Deno type check for `application-monitor`; deployed/local source parity; `git diff --check`; and Step 8 static contract assertions. The combined Deno check still reports pre-existing typing diagnostics in completed Step 5/6/7 functions under current dependency typings; those files were not changed.
 - Provider state: SAFE / NO MAILBOX READ — Gmail remains `revoked` from the completed Step 7 disconnect lifecycle, so no real mailbox content was read and no reconnect was attempted. A future real-mailbox dry run requires the owner to reconnect Gmail with the existing read-only OAuth flow; this does not create a schedule or enable sending.
-- Commit: Pending final feature-branch commit(s).
+- Commit: `441c72a` — Complete Step 8 application monitor.
 - Blockers: None for Step 8. Step 9 is now the current step and remains not started. No schedule, automatic sending, merge to main, or deployment outside the authorized Supabase Edge Function was performed.
 
 When complete:
