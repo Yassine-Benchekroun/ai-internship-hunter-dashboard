@@ -421,38 +421,38 @@ Status: **NOT STARTED**
 
 Checklist:
 
-- [ ] Migration history consistent.
-- [ ] Production data preserved.
-- [ ] Backend settings correct.
-- [ ] Approved sources configured.
-- [ ] Target countries configured.
-- [ ] No real user-specific data hardcoded in public build.
-- [ ] Master CV backend ready.
-- [ ] Profile Sync dry run passed.
-- [ ] Opportunity ingestion dry run passed.
-- [ ] Gmail/provider connection works.
-- [ ] Application Monitor dry run passed.
-- [ ] Auto-send remains OFF.
-- [ ] Run-health visibility works.
-- [ ] RLS verified.
-- [ ] Edge Functions verified.
-- [ ] No privileged credentials exposed.
-- [ ] Tests/build pass.
-- [ ] Feature-branch diff reviewed.
-- [ ] No recurring schedules created.
+- [ ] Migration history consistent — BLOCKED: production includes managed `20261106115834 step7_provider_oauth`, but the repository migration ledger has no mapping for it.
+- [x] Production data preserved.
+- [ ] Backend settings correct — BLOCKED: the live owner settings row currently has zero approved sources and zero target countries.
+- [ ] Approved sources configured — BLOCKED: live `approved_profile_sources` is an empty array instead of the previously authorized two-entry registry.
+- [ ] Target countries configured — BLOCKED: live `target_countries` is empty instead of the previously authorized eight-country list.
+- [x] No real user-specific data hardcoded in public build.
+- [x] Master CV backend ready.
+- [x] Profile Sync dry run passed.
+- [x] Opportunity ingestion dry run passed.
+- [x] Gmail/provider connection works.
+- [x] Application Monitor dry run passed.
+- [x] Auto-send remains OFF.
+- [x] Run-health visibility works.
+- [x] RLS verified.
+- [x] Edge Functions verified.
+- [x] No privileged credentials exposed.
+- [x] Tests/build pass.
+- [x] Feature-branch diff reviewed.
+- [x] No recurring schedules created.
 
 Results:
 
-- GitHub:
-- Supabase:
-- Security:
-- Profile Sync:
-- Discovery readiness:
-- Gmail:
-- Monitor:
-- Master CV:
-- Tests:
-- Remaining blockers:
+- GitHub: PASS — the requested worktree is on `codex/step8-application-monitor`, tracks `origin/codex/step8-application-monitor`, has no tracked uncommitted changes, and the feature-branch diff against `origin/main` was reviewed. `master_cv.pdf` remains intentionally untracked and private.
+- Supabase: BLOCKED — the project is `ACTIVE_HEALTHY`; the live migration list contains 20 entries, including managed `20261106115834 step7_provider_oauth`, while `docs/supabase-migration-ledger.md` omits that production-to-repository mapping. The read-only catalog audit found all 13 public tables with RLS enabled, zero anonymous public-table grants, and no data mutation during this audit. Live counts remain `dashboard_state=1`, `user_settings=1`, `profile_facts=19`, `profile_fact_evidence=20`, `profile_sync_runs=2`, `master_cv_versions=1`, all opportunity/application/draft/monitor/ingestion counts at `0`, zero Storage buckets, and `pg_cron` unavailable.
+- Security: PASS with documented follow-up notices — Health Advisor returned no findings. The remaining security notices are unchanged: password-leak protection is disabled while the product offers passwordless magic-link auth only, and private provider tables use RLS as defense in depth without policies. Performance notices remain the documented unindexed private provider-state foreign key and nine currently unused indexes; no index was removed.
+- Profile Sync: PASS — prior controlled dry run remains evidenced by 19 verified facts, 20 evidence rows, two completed sync runs, and no review-needed facts; the live Edge Function is active version 2 with JWT verification and source parity.
+- Discovery readiness: PASS — prior controlled ingestion/deduplication dry run completed and cleanup restored zero opportunity and ingestion-event rows; the live `ingest-opportunities` function is active version 6 with JWT verification and source parity.
+- Gmail: PASS for lifecycle safety — connect, refresh/session, and disconnect/revoke were previously verified; the current private/public provider state is safely `revoked`, tokens are cleared, and no mailbox content was read during this audit.
+- Monitor: PASS — prior rollback-only monitor dry run verified status propagation, draft-only follow-up, idempotency, and run logging; the live function is active version 1 with JWT verification and source parity, and monitor tables are empty after cleanup.
+- Master CV: PASS — the live backend has one current revision; the local supplied PDF remains untracked/private and was not read, staged, committed, or exposed in public assets.
+- Tests: PASS — all 47 Node tests; syntax checks for server, public bridges/UI/config, and all four Edge Functions; `git diff --check`; public privileged-credential scan; public owner/source-marker scan; deployed/local Edge Function parity; live project, migration, advisor, catalog, RLS/grant, row-count, and boundary smoke checks. Unauthenticated POSTs returned `401` for `ingest-opportunities`, `sync-profile`, and `application-monitor`, and `400` for the no-state `provider-oauth` request; all CORS preflights returned `200`.
+- Remaining blockers: Do not mark Step 10 complete. An explicitly authorized production settings repair is required to restore the two approved sources and eight target countries, and the migration ledger must be reconciled with the live Step 7 managed version. No schedule, automatic email sending, deployment, merge, or other production mutation was performed.
 
 When complete:
 
