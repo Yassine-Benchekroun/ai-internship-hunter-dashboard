@@ -331,6 +331,7 @@ Results:
 - Final lifecycle verification: PASS — the owner refreshed the live dashboard and it remained connected, then selected `Disconnect & revoke`. The dashboard showed `Access revoked`, `Email provider: Not connected`, and automatic sending remained `Disabled`. Live Supabase verification shows the Gmail provider status `revoked` in both private and public state, with access and refresh tokens cleared; applications, opportunities, and email drafts remain zero. One short-lived pending OAuth state remains from the prior test attempt and is active only until its normal expiry; it contains no token material.
 - Commit: `cb43c0f` — Implement backend-only Gmail provider OAuth. This preserves the current Step 7 blocker; it does not claim live provider verification or production deployment.
 - Fix commit: `ced1b4a` — Prevent ordinary dashboard settings saves from overwriting the connected provider status.
+- Final verification commit: `d79d940` — Complete Step 7 OAuth lifecycle verification and advance the tracker to Step 8 (not started).
 - Blockers: None for Step 7. Step 8 is intentionally not started. No automatic sending or schedule was created.
 
 When complete:
