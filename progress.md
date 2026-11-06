@@ -42,8 +42,8 @@ Current step:
 | 6. Verify Opportunity ingestion + dry run | COMPLETE |
 | 7. Implement Gmail/provider OAuth | COMPLETE |
 | 8. Add Application Monitor endpoint + dry run | COMPLETE |
-| 9. Add run-health visibility + Supabase cleanup | NOT STARTED |
-| 10. Final pre-schedule audit | BLOCKED BY STEP 9 |
+| 9. Add run-health visibility + Supabase cleanup | COMPLETE |
+| 10. Final pre-schedule audit | NOT STARTED |
 
 ---
 
@@ -384,28 +384,28 @@ When complete:
 
 # Step 9 — Run health + Supabase cleanup
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Add minimal run-health model/UI.
-- [ ] Show safe last-run information.
-- [ ] Do not expose secrets.
-- [ ] Remove redundant profile_sync_runs SELECT policy.
-- [ ] Re-run security advisor.
-- [ ] Re-run performance advisor.
-- [ ] Document passwordless/password security decision.
-- [ ] Do not remove indexes only because they are unused now.
-- [ ] Commit/push.
+- [x] Add minimal run-health model/UI.
+- [x] Show safe last-run information.
+- [x] Do not expose secrets.
+- [x] Remove redundant profile_sync_runs SELECT policy.
+- [x] Re-run security advisor.
+- [x] Re-run performance advisor.
+- [x] Document passwordless/password security decision.
+- [x] Do not remove indexes only because they are unused now.
+- [x] Commit/push.
 
 Results:
 
-- Run health:
-- RLS cleanup:
-- Advisors:
-- Tests:
-- Commit:
-- Blockers:
+- Run health: PASS — added an owner-scoped `runHealth` model in the normalized bridge and a minimal Overview panel for Profile Sync, Opportunity Discovery, and Application Monitor. The UI shows only the latest safe status/date, bounded operational counts, and error counts. It does not render raw summaries/errors, mailbox content, source excerpts, provider tokens, credentials, or secrets. Signed-out and non-owner sessions never enter the private run-history loading path.
+- RLS cleanup: PASS — live pre-change verification found two authenticated SELECT policies on `profile_sync_runs`, with RLS enabled and the expected authenticated SELECT grant. The authorized migration `step9_run_health_cleanup` applied as managed version `20261106190147`; post-change verification shows only the canonical `Step 2 users can read their profile sync runs` policy, RLS still enabled on all four run tables, grants preserved, and counts unchanged (`profile_sync_runs = 2`; ingestion, monitor-run, and monitor-event counts remain `0`).
+- Advisors: PASS — Health Advisor returned no findings. The duplicate `profile_sync_runs` multiple-permissive-policy finding cleared. Remaining notices are unchanged and documented: leaked-password protection disabled while the dashboard offers magic-link/passwordless `signInWithOtp` only; private provider tables have RLS without policies as defense in depth; one private provider-state foreign key is unindexed; and nine indexes are currently unused. No index was removed solely because it is unused.
+- Tests: PASS — all 47 repository Node tests; `node --check server.mjs`; `node --check dist/opportunity-records-bridge.js`; `node --check dist/phase2-ui.js`; `git diff --check`; and the public `dist/` privileged-credential scan. Live pre/post catalog, RLS, grants, row-count, migration-list, and advisor verification also passed. No schedule, automatic email sending, production deployment, or unrelated data mutation was performed.
+- Commit: `TBD until the completion commit is created`.
+- Blockers: None for Step 9. Step 10 is now the current step and remains `NOT STARTED`; overall status stays `NOT READY FOR SCHEDULES` until the final audit. The documented Supabase Auth warning and informational performance findings remain follow-up items, not blockers for this completed cleanup step.
 
 When complete:
 

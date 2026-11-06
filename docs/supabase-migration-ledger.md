@@ -22,6 +22,7 @@ The production project `cjwsyitmoussjnjjgdsv` records migrations with the timest
 | 20261103223240 | step4_master_cv | `supabase/migrations/20261103000000_step4_master_cv.sql` |
 | 20261106183512 | step8_application_monitor | `supabase/migrations/20261106170000_step8_application_monitor.sql` |
 | 20261106183612 | step8_application_monitor_fk_index | `supabase/migrations/20261106184000_step8_application_monitor_fk_index.sql` |
+| 20261106190147 | step9_run_health_cleanup | `supabase/migrations/20261106190000_step9_run_health_cleanup.sql` |
 
 The production list was verified after applying Step 4. No scheduled automation or mail sender is part of these migrations.
 
@@ -47,3 +48,12 @@ The controlled rollback-only application test passed for status propagation,
 follow-up draft creation, duplicate message suppression, run logging, and
 browser-role denial. The provider remains revoked from the completed Step 7
 lifecycle, so no real mailbox content was read and no reconnect was attempted.
+
+## Step 9 deployment note — 2026-11-06
+
+The managed production migration `20261106190147 step9_run_health_cleanup`
+removed only the redundant `Users can read profile sync runs` SELECT policy;
+the canonical Step 2 owner-scoped policy, RLS, grants, and all run rows were
+preserved. The dashboard now reads owner-scoped latest run summaries from the
+profile sync, opportunity ingestion, and application monitor histories while
+rendering only safe dates, statuses, bounded counts, and error counts.

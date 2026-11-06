@@ -239,3 +239,19 @@ remain explicit human-review artifacts; this endpoint never sends email.
   dashboard actions.
 - All future workers must use these contracts rather than direct table writes.
 - Any future schedule must be explicitly configured after Phase 4 verification.
+
+## Run-health visibility
+
+The owner dashboard shows a minimal read-only summary from the existing
+`profile_sync_runs`, `opportunity_ingestion_events`, and
+`application_monitor_runs` tables. It displays only the latest status, a
+date, bounded operational counts, and an error count. It does not display
+provider tokens, credentials, mailbox content, source excerpts, or raw error
+payloads. Signed-out and non-owner sessions do not load these private rows.
+
+The dashboard uses Supabase magic-link sign-in (`signInWithOtp`) and does not
+offer password sign-in. The Supabase leaked-password-protection warning is
+therefore documented as a platform configuration follow-up rather than
+silently changing Auth settings in this repository. If password sign-in is
+enabled later, leaked-password protection should be enabled before passwords
+are accepted.

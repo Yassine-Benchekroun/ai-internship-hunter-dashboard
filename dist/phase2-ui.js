@@ -17,6 +17,9 @@
   function ensurePhase2State() {
     state.profileFacts = Array.isArray(state.profileFacts) ? state.profileFacts : [];
     state.profileSync = state.profileSync && typeof state.profileSync === 'object' ? state.profileSync : null;
+    state.runHealth = state.runHealth && typeof state.runHealth === 'object'
+      ? state.runHealth
+      : { profileSync: null, opportunityIngestion: null, applicationMonitor: null };
     state.connectedEmail = typeof state.connectedEmail === 'string' ? state.connectedEmail : '';
     state.providerConnectionStatus = state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected');
     state.emailProviderConnected = state.providerConnectionStatus === 'connected';
@@ -183,6 +186,43 @@
       '</div>';
   }
 
+  function runHealthDate(run) {
+    if (!run) return 'Not recorded';
+    return formatProfileDate(run.completedAt || run.startedAt);
+  }
+
+  function runHealthStatus(run) {
+    return run ? String(run.status || 'Recorded') : 'Not recorded';
+  }
+
+  function runHealthStatusClass(run) {
+    if (!run) return 'yellow';
+    if (run.status === 'completed') return 'green';
+    if (run.status === 'failed') return 'red';
+    return 'yellow';
+  }
+
+  function runHealthCard(title, description, run, detail) {
+    return '<div class="phase2-run-health-card"><div class="phase2-run-health-card-head"><div><h3>' + esc(title) + '</h3><div class="panel-kicker">' + esc(description) + '</div></div><span class="pill ' + runHealthStatusClass(run) + '">' + esc(runHealthStatus(run)) + '</span></div><div class="phase2-run-health-meta"><span>Last recorded</span><strong>' + esc(runHealthDate(run)) + '</strong></div><div class="phase2-run-health-detail">' + esc(detail) + '</div></div>';
+  }
+
+  function runHealthHTML() {
+    var health = state.runHealth || {};
+    var profile = health.profileSync;
+    var ingestion = health.opportunityIngestion;
+    var monitor = health.applicationMonitor;
+    var profileDetail = profile
+      ? '+' + profile.recordsInserted + ' added · ~' + profile.recordsUpdated + ' updated · ' + profile.duplicatesIgnored + ' duplicates · ' + profile.errorCount + ' errors'
+      : 'No profile sync run recorded';
+    var ingestionDetail = ingestion
+      ? ingestion.opportunitiesReceived + ' received · ' + ingestion.opportunitiesInserted + ' inserted · ' + ingestion.opportunitiesUpdated + ' updated · ' + ingestion.duplicatesIgnored + ' duplicates · ' + ingestion.errorCount + ' errors'
+      : 'No opportunity ingestion run recorded';
+    var monitorDetail = monitor
+      ? monitor.messagesScanned + ' messages scanned · ' + monitor.applicationsUpdated + ' applications updated · ' + monitor.followUpDraftsCreated + ' drafts · ' + monitor.errorCount + ' errors' + (monitor.dryRun ? ' · dry run' : '')
+      : 'No application monitor run recorded';
+    return '<div class="panel pad phase2-run-health"><div class="panel-head"><div class="panel-title"><div class="title-icon">' + icon('clock') + '</div><div><h2>Run health</h2><div class="panel-kicker">Safe owner-scoped summaries from backend run history</div></div></div><span class="pill cyan">No secrets</span></div><div class="phase2-run-health-grid">' + runHealthCard('Profile Sync', 'Verified profile facts', profile, profileDetail) + runHealthCard('Opportunity Discovery', 'Normalized opportunity intake', ingestion, ingestionDetail) + runHealthCard('Application Monitor', 'Read-only mailbox monitoring', monitor, monitorDetail) + '</div><div class="phase2-sync-note">Only status, date, bounded counts, and error counts are shown. Tokens, message bodies, source excerpts, and credentials stay out of the dashboard.</div></div>';
+  }
+
   function approvedProfileSources() {
     return Array.isArray(state.approvedProfileSources)
       ? state.approvedProfileSources.filter(function (source) {
@@ -282,7 +322,7 @@
     var html = overviewHTMLOriginal();
     var marker = '<div class="dashboard-grid">';
     return html.replace('<div id="public-source-registry"></div>', approvedSourcesOverviewHTML())
-      .replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + '</div>' + marker);
+      .replace(marker, '<div class="phase2-overview-profile-wrap">' + overviewProfileCard() + runHealthHTML() + '</div>' + marker);
   }
 
   function settingsListInput(value) {
@@ -510,6 +550,7 @@
     var style = document.createElement('style');
     style.id = 'phase2-styles';
     style.textContent = '.phase2-sync-card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(15,31,47,.96),rgba(11,25,39,.96));border-radius:14px;padding:18px;margin-bottom:15px}.phase2-sync-head,.phase2-category-head,.phase2-overview-profile .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.phase2-eyebrow{color:var(--cyan);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.12em}.phase2-sync-head h3{margin:4px 0 0}.phase2-sync-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:15px}.phase2-sync-grid div,.phase2-overview-profile-stats div{border:1px solid var(--line);border-radius:10px;padding:11px;background:rgba(255,255,255,.025)}.phase2-sync-grid span,.phase2-overview-profile-stats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.phase2-sync-grid strong{display:block;color:var(--text);font-size:11px;margin-top:6px;line-height:1.4}.phase2-sync-note{margin-top:12px;color:var(--muted);font-size:10px;line-height:1.5}.phase2-profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase2-category-head h3{margin:0}.phase2-category-head .pill{min-width:24px;text-align:center}.phase2-fact{display:flex;justify-content:space-between;gap:15px;border-top:1px solid var(--line);padding:11px 0}.phase2-fact:first-child{border-top:0;padding-top:0}.phase2-fact-name{font-weight:700;color:var(--text);font-size:11px}.phase2-fact-description,.phase2-fact-evidence,.phase2-fact-meta{color:var(--muted);font-size:9px;line-height:1.45}.phase2-fact-description{margin-top:3px}.phase2-fact-evidence{margin-top:5px}.phase2-fact-meta{min-width:105px;text-align:right}.phase2-status{display:inline-block;border-radius:999px;padding:3px 7px;font-size:8px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.phase2-status.verified{background:rgba(98,220,155,.12);color:var(--green)}.phase2-status.new{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.needs-review{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.source-missing{background:rgba(239,122,132,.12);color:var(--red)}.phase2-source-missing{color:var(--red)}.phase2-evidence{color:var(--cyan);text-decoration:none}.phase2-empty-fact{border-top:1px solid var(--line);padding-top:13px;color:var(--muted);font-size:10px}.phase2-overview-profile-wrap{margin-bottom:15px}.phase2-overview-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.phase2-overview-profile-stats strong{display:block;font-size:20px;color:var(--text);margin-bottom:4px}.phase2-identity-editor{display:flex;gap:7px;align-items:center}.phase2-identity-editor input{width:210px}.phase2-provider-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.phase2-automation{display:grid;grid-template-columns:34px 1fr auto;align-items:start;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}.phase2-automation-num{color:var(--cyan);font-family:ui-monospace,monospace;font-weight:700}.phase2-automation h3{margin:0 0 5px;font-size:12px}.phase2-automation p{margin:0;color:var(--muted);font-size:10px;line-height:1.5}.phase2-workflow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:15px;padding:12px;border:1px dashed var(--line2);border-radius:10px;color:var(--muted);font-size:10px}.phase2-workflow strong{color:var(--text)}.phase2-workflow span{color:var(--cyan)}.phase2-workflow em{width:100%;color:var(--muted);font-size:9px}.phase2-classification{margin-right:4px}.phase2-card-classification{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}.phase2-application-status .phase2-pill-label{color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.05em}.phase2-demo-notice{margin-bottom:15px}.phase2-settings-grid{grid-template-columns:1fr 1fr}.phase2-automation-card{grid-column:1/-1}@media(max-width:800px){.phase2-sync-grid{grid-template-columns:1fr 1fr}.phase2-profile-grid,.phase2-settings-grid{grid-template-columns:1fr}.phase2-automation-card{grid-column:auto}.phase2-fact{display:block}.phase2-fact-meta{text-align:left;margin-top:8px}.phase2-identity-editor{flex-direction:column;align-items:stretch}.phase2-identity-editor input{width:100%}.phase2-provider-actions{justify-content:flex-start}}';
+    style.textContent += '.phase2-run-health{margin-top:15px}.phase2-run-health-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.phase2-run-health-card{border:1px solid var(--line);border-radius:10px;padding:12px;background:rgba(255,255,255,.025)}.phase2-run-health-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.phase2-run-health-card h3{font-size:11px}.phase2-run-health-meta{margin-top:13px;padding-top:10px;border-top:1px solid var(--line)}.phase2-run-health-meta span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.phase2-run-health-meta strong{display:block;color:var(--text);font-size:11px;margin-top:5px}.phase2-run-health-detail{color:var(--muted);font-size:9px;line-height:1.5;margin-top:10px}@media(max-width:800px){.phase2-run-health-grid{grid-template-columns:1fr}}';
     document.head.appendChild(style);
   }
 

@@ -524,6 +524,74 @@
     state.profileSync = (runsResult.data || [])[0] || null;
   }
 
+  function runErrorCount(errors) {
+    return Array.isArray(errors) ? errors.length : 0;
+  }
+
+  function profileRunHealth(run) {
+    if (!run) return null;
+    return {
+      status: run.status || 'unknown',
+      startedAt: run.started_at || null,
+      completedAt: run.completed_at || null,
+      recordsDiscovered: Number(run.records_discovered || 0),
+      recordsInserted: Number(run.records_inserted || 0),
+      recordsUpdated: Number(run.records_updated || 0),
+      duplicatesIgnored: Number(run.duplicates_ignored || 0),
+      recordsNeedingReview: Number(run.records_needing_review || 0),
+      errorCount: runErrorCount(run.errors)
+    };
+  }
+
+  function ingestionRunHealth(run) {
+    if (!run) return null;
+    return {
+      status: run.status || 'unknown',
+      startedAt: run.received_at || run.created_at || null,
+      completedAt: run.created_at || null,
+      opportunitiesReceived: Number(run.opportunities_received || 0),
+      opportunitiesInserted: Number(run.opportunities_inserted || 0),
+      opportunitiesUpdated: Number(run.opportunities_updated || 0),
+      duplicatesIgnored: Number(run.duplicates_ignored || 0),
+      errorCount: runErrorCount(run.errors)
+    };
+  }
+
+  function monitorRunHealth(run) {
+    if (!run) return null;
+    return {
+      status: run.status || 'unknown',
+      dryRun: run.dry_run === true,
+      startedAt: run.started_at || null,
+      completedAt: run.completed_at || null,
+      messagesScanned: Number(run.messages_scanned || 0),
+      applicationsConsidered: Number(run.applications_considered || 0),
+      applicationsUpdated: Number(run.applications_updated || 0),
+      followUpDraftsCreated: Number(run.follow_up_drafts_created || 0),
+      duplicatesIgnored: Number(run.duplicates_ignored || 0),
+      errorCount: runErrorCount(run.errors)
+    };
+  }
+
+  async function loadRunHealth() {
+    if (!bridgeClient || !bridgeUser) return;
+    var results = await Promise.all([
+      bridgeClient.from('opportunity_ingestion_events')
+        .select('status,received_at,created_at,opportunities_received,opportunities_inserted,opportunities_updated,duplicates_ignored,errors')
+        .order('created_at', { ascending: false }).limit(1),
+      bridgeClient.from('application_monitor_runs')
+        .select('status,dry_run,started_at,completed_at,messages_scanned,applications_considered,applications_updated,follow_up_drafts_created,duplicates_ignored,errors')
+        .order('started_at', { ascending: false }).limit(1)
+    ]);
+    if (results[0].error) throw results[0].error;
+    if (results[1].error) throw results[1].error;
+    state.runHealth = {
+      profileSync: profileRunHealth(state.profileSync),
+      opportunityIngestion: ingestionRunHealth((results[0].data || [])[0] || null),
+      applicationMonitor: monitorRunHealth((results[1].data || [])[0] || null)
+    };
+  }
+
   async function loadUserSettings() {
     var result = await bridgeClient.from('user_settings').select('*').eq('user_id', bridgeUser.id).maybeSingle();
     if (result.error) throw result.error;
@@ -658,6 +726,12 @@
       console.error('Profile registry could not be loaded', error);
       state.profileFacts = [];
       state.profileSync = null;
+    }
+    try {
+      await loadRunHealth();
+    } catch (error) {
+      console.error('Run health could not be loaded', error);
+      state.runHealth = { profileSync: null, opportunityIngestion: null, applicationMonitor: null };
     }
     var opportunityQueueChanged = await flushOpportunityDeleteQueue();
     var result = await bridgeClient.from('opportunity_records').select('*').order('updated_at', { ascending: false });
