@@ -20,6 +20,8 @@ The production project `cjwsyitmoussjnjjgdsv` records migrations with the timest
 | 20261029220721 | step1_auth_ownership_foundation | `supabase/migrations/20261029220000_step1_auth_ownership_foundation.sql` |
 | 20261030181754 | step_2_privacy_hardening | `supabase/migrations/20261030200000_step2_privacy_hardening.sql` |
 | 20261103223240 | step4_master_cv | `supabase/migrations/20261103000000_step4_master_cv.sql` |
+| 20261106183512 | step8_application_monitor | `supabase/migrations/20261106170000_step8_application_monitor.sql` |
+| 20261106183612 | step8_application_monitor_fk_index | `supabase/migrations/20261106184000_step8_application_monitor_fk_index.sql` |
 
 The production list was verified after applying Step 4. No scheduled automation or mail sender is part of these migrations.
 
@@ -33,3 +35,15 @@ The live database matches the canonical Step 1/Step 2 ownership, RLS, and table-
 ## Step 4 deployment note — 2026-11-03
 
 The managed production migration `20261103223240 step4_master_cv` maps to the reviewed repository source `20261103000000_step4_master_cv.sql`. The live `master_cv_versions` table, owner-only RLS policy, authenticated `save_master_cv` RPC, and targeted-CV separation were verified after deployment. The supplied Master CV was imported as owner revision 1 through the authenticated RPC; its source reference is `user-provided:master_cv.pdf`. The PDF remains private and is not tracked in Git.
+
+## Step 8 deployment note — 2026-11-06
+
+The managed production migrations `20261106183512 step8_application_monitor`
+and `20261106183612 step8_application_monitor_fk_index` map to the reviewed
+repository sources above. Production now has owner-readable, service-role-
+written monitor run/event history, message-id idempotency, and the
+`application-monitor` Edge Function at version 1 with `verify_jwt = true`.
+The controlled rollback-only application test passed for status propagation,
+follow-up draft creation, duplicate message suppression, run logging, and
+browser-role denial. The provider remains revoked from the completed Step 7
+lifecycle, so no real mailbox content was read and no reconnect was attempted.

@@ -10,3 +10,8 @@ verify_jwt = true
 # single-use hashed state for the callback.
 [functions.provider-oauth]
 verify_jwt = false
+
+# The Application Monitor uses the platform JWT boundary and performs a
+# second signed-in-user check before reading owner-scoped application data.
+[functions.application-monitor]
+verify_jwt = true

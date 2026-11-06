@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 8 — Add Application Monitor endpoint + dry run**
+**Step 9 — Run health + Supabase cleanup**
 
 ---
 
@@ -41,8 +41,8 @@ Current step:
 | 5. Add Profile Sync endpoint + dry run | COMPLETE |
 | 6. Verify Opportunity ingestion + dry run | COMPLETE |
 | 7. Implement Gmail/provider OAuth | COMPLETE |
-| 8. Add Application Monitor endpoint + dry run | NOT STARTED |
-| 9. Add run-health visibility + Supabase cleanup | BLOCKED BY STEP 8 |
+| 8. Add Application Monitor endpoint + dry run | COMPLETE |
+| 9. Add run-health visibility + Supabase cleanup | NOT STARTED |
 | 10. Final pre-schedule audit | BLOCKED BY STEP 9 |
 
 ---
@@ -344,31 +344,35 @@ When complete:
 
 # Step 8 — Add Application Monitor endpoint + dry run
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Create secure monitor endpoint.
-- [ ] Scope to intended owner.
-- [ ] Use mailbox authorization safely.
-- [ ] Call existing application update RPC.
-- [ ] Prevent duplicate processing.
-- [ ] Create follow-up drafts only.
-- [ ] Never auto-send.
-- [ ] Log run result.
-- [ ] Run controlled application test.
-- [ ] Verify status/history/follow-up.
-- [ ] Commit/push.
+- [x] Create secure monitor endpoint.
+- [x] Scope to intended owner.
+- [x] Use mailbox authorization safely.
+- [x] Call existing application update RPC.
+- [x] Prevent duplicate processing.
+- [x] Create follow-up drafts only.
+- [x] Never auto-send.
+- [x] Log run result.
+- [x] Run controlled application test.
+- [x] Verify status/history/follow-up.
+- [x] Commit/push.
 
 Results:
 
-- Endpoint:
-- Status update:
-- Follow-up draft:
-- Logging:
-- Tests:
-- Commit:
-- Blockers:
+- Endpoint: PASS — deployed `application-monitor` version 1 with `verify_jwt = true`; the retrieved live source matches the checked-in entrypoint after line-ending normalization. The endpoint validates the signed-in user again with `auth.getUser`, derives owner scope, reads only Gmail metadata with `gmail.readonly`, rejects send/modify scopes, supports dry-run mode, and never sends mail.
+- Status update: PASS — live migration redefined `automation_update_application(jsonb)` to accept a Gmail provider message id as an idempotency key, record one owner-scoped monitor event per message, and update the linked opportunity status without changing match classification.
+- Follow-up draft: PASS — controlled verification created exactly one versioned draft-only follow-up artifact through the existing RPC; no send path or automatic email action exists.
+- Logging: PASS — live `application_monitor_runs` and `application_monitor_events` tables have RLS enabled, owner-only authenticated SELECT policies, no anonymous SELECT or authenticated INSERT privileges, and service-role-only write paths through `automation_log_application_monitor_run(jsonb)` and the existing update RPC.
+- Live migration/deployment: PASS — managed migrations `20261106183512 step8_application_monitor` and `20261106183612 step8_application_monitor_fk_index` are present; all pre-existing opportunity, application, draft, and ingestion-event counts remained `0`; monitor tables remained empty after rollback-only testing; the deployed Edge Function is ACTIVE version 1 with JWT verification enabled.
+- Controlled application test: PASS — rollback-only live SQL test verified reply status propagation to the application and linked opportunity, follow-up draft creation, duplicate provider-message suppression, run logging, and browser-role denial; the transaction rolled back with no test rows left behind.
+- Boundary smoke tests: PASS — live CORS preflight returned `200`; unauthenticated POST returned `401 UNAUTHORIZED_NO_AUTH_HEADER`.
+- Local tests: PASS — all 43 repository Node tests; Deno type check for `application-monitor`; deployed/local source parity; `git diff --check`; and Step 8 static contract assertions. The combined Deno check still reports pre-existing typing diagnostics in completed Step 5/6/7 functions under current dependency typings; those files were not changed.
+- Provider state: SAFE / NO MAILBOX READ — Gmail remains `revoked` from the completed Step 7 disconnect lifecycle, so no real mailbox content was read and no reconnect was attempted. A future real-mailbox dry run requires the owner to reconnect Gmail with the existing read-only OAuth flow; this does not create a schedule or enable sending.
+- Commit: Pending final feature-branch commit(s).
+- Blockers: None for Step 8. Step 9 is now the current step and remains not started. No schedule, automatic sending, merge to main, or deployment outside the authorized Supabase Edge Function was performed.
 
 When complete:
 
@@ -380,7 +384,7 @@ When complete:
 
 # Step 9 — Run health + Supabase cleanup
 
-Status: **BLOCKED BY STEP 8**
+Status: **NOT STARTED**
 
 Checklist:
 

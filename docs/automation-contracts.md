@@ -177,6 +177,21 @@ CV/email versions are preserved.
 
 RPC: `public.automation_update_application(p_payload jsonb)`
 
+Edge Function: `application-monitor` (`POST /functions/v1/application-monitor`)
+
+The endpoint requires a signed-in Supabase Auth JWT and derives the owner UUID
+from the verified caller. It reads only Gmail message metadata through the
+backend-only provider connection: the provider must be connected with the
+`gmail.readonly` scope, and scopes that can send or modify mail are rejected.
+The worker never returns tokens, message bodies, or provider secrets.
+
+The optional request fields are `application_id` (to monitor one owner-owned
+application) and `dry_run` (to inspect proposed actions without writing
+application, event, or draft rows). Each completed request records a safe run
+summary in `application_monitor_runs`. A provider message ID is recorded in
+`application_monitor_events` and is used as the idempotency key before the
+status update is applied.
+
 Reads and writes:
 
 - Reads one owner-owned `application_records` row and its linked opportunity.
@@ -209,6 +224,12 @@ Payload shape:
 `follow_up_draft` requires `follow_up_needed` status and a non-empty body. The
 status list is constrained to the normalized application lifecycle. Existing
 classification is independent and is not changed by application status.
+
+When a matching reply is found, the monitor marks the application `replied`.
+When a configured follow-up time is due without a matching reply, it may mark
+the application `follow_up_needed` and create a versioned draft from the
+application's existing organization, position, and recipient fields. Drafts
+remain explicit human-review artifacts; this endpoint never sends email.
 
 ## Operational restrictions
 
