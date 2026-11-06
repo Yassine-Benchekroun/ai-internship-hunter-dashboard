@@ -559,6 +559,19 @@
   window.AIH_loadBackendSettings = loadUserSettings;
   window.AIH_saveBackendSettings = syncUserSettings;
 
+  async function providerOAuth(action) {
+    if (!bridgeClient) throw new Error('Supabase is not configured.');
+    var sessionResult = await bridgeClient.auth.getSession();
+    var session = sessionResult.data && sessionResult.data.session;
+    if (!session || !session.user) throw new Error('Sign in to manage the Gmail provider.');
+    bridgeUser = session.user;
+    var result = await bridgeClient.functions.invoke('provider-oauth', { body: { action: action } });
+    if (result.error) throw new Error(result.error.message || 'Provider OAuth request failed.');
+    return result.data || {};
+  }
+
+  window.AIH_providerOAuth = providerOAuth;
+
   async function loadNormalizedApplications() {
     var pendingDeletes = Array.isArray(state.cloudApplicationDeleteQueue)
       ? state.cloudApplicationDeleteQueue.filter(isUuid)
