@@ -22,11 +22,11 @@ Do NOT create recurring schedules during this project.
 
 # Overall status
 
-**NOT READY FOR SCHEDULES**
+**READY FOR SCHEDULE CREATION**
 
 Current step:
 
-**Step 9 — Run health + Supabase cleanup**
+**NONE — final pre-schedule audit complete**
 
 ---
 
@@ -43,7 +43,7 @@ Current step:
 | 7. Implement Gmail/provider OAuth | COMPLETE |
 | 8. Add Application Monitor endpoint + dry run | COMPLETE |
 | 9. Add run-health visibility + Supabase cleanup | COMPLETE |
-| 10. Final pre-schedule audit | NOT STARTED |
+| 10. Final pre-schedule audit | COMPLETE |
 
 ---
 
@@ -417,15 +417,15 @@ When complete:
 
 # Step 10 — Final pre-schedule audit
 
-Status: **NOT STARTED**
+Status: **COMPLETE**
 
 Checklist:
 
-- [ ] Migration history consistent — BLOCKED: production includes managed `20261106115834 step7_provider_oauth`, but the repository migration ledger has no mapping for it.
+- [x] Migration history consistent.
 - [x] Production data preserved.
-- [ ] Backend settings correct — BLOCKED: the live owner settings row currently has zero approved sources and zero target countries.
-- [ ] Approved sources configured — BLOCKED: live `approved_profile_sources` is an empty array instead of the previously authorized two-entry registry.
-- [ ] Target countries configured — BLOCKED: live `target_countries` is empty instead of the previously authorized eight-country list.
+- [x] Backend settings correct.
+- [x] Approved sources configured.
+- [x] Target countries configured.
 - [x] No real user-specific data hardcoded in public build.
 - [x] Master CV backend ready.
 - [x] Profile Sync dry run passed.
@@ -443,16 +443,17 @@ Checklist:
 
 Results:
 
-- GitHub: PASS — the requested worktree is on `codex/step8-application-monitor`, tracks `origin/codex/step8-application-monitor`, has no tracked uncommitted changes, and the feature-branch diff against `origin/main` was reviewed. `master_cv.pdf` remains intentionally untracked and private.
-- Supabase: BLOCKED — the project is `ACTIVE_HEALTHY`; the live migration list contains 20 entries, including managed `20261106115834 step7_provider_oauth`, while `docs/supabase-migration-ledger.md` omits that production-to-repository mapping. The read-only catalog audit found all 13 public tables with RLS enabled, zero anonymous public-table grants, and no data mutation during this audit. Live counts remain `dashboard_state=1`, `user_settings=1`, `profile_facts=19`, `profile_fact_evidence=20`, `profile_sync_runs=2`, `master_cv_versions=1`, all opportunity/application/draft/monitor/ingestion counts at `0`, zero Storage buckets, and `pg_cron` unavailable.
+- GitHub: PASS — `main` and `origin/main` now point to the merged Step 8–10 state at `702dd0f`; Pages workflow run `#33` completed successfully. `master_cv.pdf` remains intentionally untracked and private.
+- Supabase: PASS — pre-change verification found one settings row with zero sources and zero countries; the authorized repair restored the exact two approved sources and eight-country list. Post-change verification confirmed all settings contract checks, preserved sender/provider separation, unchanged protected-data counts, all 13 public tables with RLS enabled, zero anonymous public-table grants, and the complete 20-entry migration history. The Step 7 managed mapping is now recorded in `docs/supabase-migration-ledger.md`. No schedule, automatic email sending, or token access was introduced.
 - Security: PASS with documented follow-up notices — Health Advisor returned no findings. The remaining security notices are unchanged: password-leak protection is disabled while the product offers passwordless magic-link auth only, and private provider tables use RLS as defense in depth without policies. Performance notices remain the documented unindexed private provider-state foreign key and nine currently unused indexes; no index was removed.
 - Profile Sync: PASS — prior controlled dry run remains evidenced by 19 verified facts, 20 evidence rows, two completed sync runs, and no review-needed facts; the live Edge Function is active version 2 with JWT verification and source parity.
 - Discovery readiness: PASS — prior controlled ingestion/deduplication dry run completed and cleanup restored zero opportunity and ingestion-event rows; the live `ingest-opportunities` function is active version 6 with JWT verification and source parity.
 - Gmail: PASS for lifecycle safety — connect, refresh/session, and disconnect/revoke were previously verified; the current private/public provider state is safely `revoked`, tokens are cleared, and no mailbox content was read during this audit.
 - Monitor: PASS — prior rollback-only monitor dry run verified status propagation, draft-only follow-up, idempotency, and run logging; the live function is active version 1 with JWT verification and source parity, and monitor tables are empty after cleanup.
 - Master CV: PASS — the live backend has one current revision; the local supplied PDF remains untracked/private and was not read, staged, committed, or exposed in public assets.
-- Tests: PASS — all 47 Node tests; syntax checks for server, public bridges/UI/config, and all four Edge Functions; `git diff --check`; public privileged-credential scan; public owner/source-marker scan; deployed/local Edge Function parity; live project, migration, advisor, catalog, RLS/grant, row-count, and boundary smoke checks. Unauthenticated POSTs returned `401` for `ingest-opportunities`, `sync-profile`, and `application-monitor`, and `400` for the no-state `provider-oauth` request; all CORS preflights returned `200`.
-- Remaining blockers: Do not mark Step 10 complete. An explicitly authorized production settings repair is required to restore the two approved sources and eight target countries, and the migration ledger must be reconciled with the live Step 7 managed version. No schedule, automatic email sending, deployment, merge, or other production mutation was performed.
+- Tests: PASS — all 47 Node tests; syntax checks for server, public bridges/UI/config, and all four Edge Functions; `git diff --check`; public privileged-credential scan; public owner/source-marker scan; local ledger count/parity check; deployed/local Edge Function parity; live project, migration, advisor, catalog, RLS/grant, settings, row-count, and boundary verification. No schedule, automatic email sending, or mailbox access was performed.
+- Commit: Pending — the ledger reconciliation and completed Step 10 progress record will be committed and pushed after this verification.
+- Remaining blockers: None for Step 10. Supabase Auth password-leak protection, private-table defense-in-depth notices, one unindexed private provider-state foreign key, and nine unused-index notices remain documented follow-ups; they are not Step 10 blockers.
 
 When complete:
 

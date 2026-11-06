@@ -20,6 +20,7 @@ The production project `cjwsyitmoussjnjjgdsv` records migrations with the timest
 | 20261029220721 | step1_auth_ownership_foundation | `supabase/migrations/20261029220000_step1_auth_ownership_foundation.sql` |
 | 20261030181754 | step_2_privacy_hardening | `supabase/migrations/20261030200000_step2_privacy_hardening.sql` |
 | 20261103223240 | step4_master_cv | `supabase/migrations/20261103000000_step4_master_cv.sql` |
+| 20261106115834 | step7_provider_oauth | `supabase/migrations/20261103233000_step7_provider_oauth.sql` |
 | 20261106183512 | step8_application_monitor | `supabase/migrations/20261106170000_step8_application_monitor.sql` |
 | 20261106183612 | step8_application_monitor_fk_index | `supabase/migrations/20261106184000_step8_application_monitor_fk_index.sql` |
 | 20261106190147 | step9_run_health_cleanup | `supabase/migrations/20261106190000_step9_run_health_cleanup.sql` |
