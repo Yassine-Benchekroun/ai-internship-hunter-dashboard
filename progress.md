@@ -452,7 +452,7 @@ Results:
 - Monitor: PASS — prior rollback-only monitor dry run verified status propagation, draft-only follow-up, idempotency, and run logging; the live function is active version 1 with JWT verification and source parity, and monitor tables are empty after cleanup.
 - Master CV: PASS — the live backend has one current revision; the local supplied PDF remains untracked/private and was not read, staged, committed, or exposed in public assets.
 - Tests: PASS — all 47 Node tests; syntax checks for server, public bridges/UI/config, and all four Edge Functions; `git diff --check`; public privileged-credential scan; public owner/source-marker scan; local ledger count/parity check; deployed/local Edge Function parity; live project, migration, advisor, catalog, RLS/grant, settings, row-count, and boundary verification. No schedule, automatic email sending, or mailbox access was performed.
-- Commit: Pending — the ledger reconciliation and completed Step 10 progress record will be committed and pushed after this verification.
+- Commit: `7f6f733` — Complete Step 10 final audit; the authorized live settings repair was verified post-change and the Step 7 migration mapping was reconciled in the ledger.
 - Remaining blockers: None for Step 10. Supabase Auth password-leak protection, private-table defense-in-depth notices, one unindexed private provider-state foreign key, and nine unused-index notices remain documented follow-ups; they are not Step 10 blockers.
 
 When complete:
