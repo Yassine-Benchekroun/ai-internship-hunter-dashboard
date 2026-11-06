@@ -417,7 +417,7 @@ When complete:
 
 # Step 10 — Final pre-schedule audit
 
-Status: **BLOCKED BY STEP 9**
+Status: **NOT STARTED**
 
 Checklist:
 
