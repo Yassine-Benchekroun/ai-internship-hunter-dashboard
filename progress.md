@@ -26,7 +26,7 @@ Do NOT create recurring schedules during this project.
 
 Current step:
 
-**Step 7 — Implement Gmail/provider OAuth**
+**Step 8 — Add Application Monitor endpoint + dry run**
 
 ---
 
@@ -40,8 +40,8 @@ Current step:
 | 4. Add Master CV backend support | COMPLETE |
 | 5. Add Profile Sync endpoint + dry run | COMPLETE |
 | 6. Verify Opportunity ingestion + dry run | COMPLETE |
-| 7. Implement Gmail/provider OAuth | BLOCKED — public dashboard deployed; real account authorization tests pending |
-| 8. Add Application Monitor endpoint + dry run | BLOCKED BY STEP 7 |
+| 7. Implement Gmail/provider OAuth | COMPLETE |
+| 8. Add Application Monitor endpoint + dry run | NOT STARTED |
 | 9. Add run-health visibility + Supabase cleanup | BLOCKED BY STEP 8 |
 | 10. Final pre-schedule audit | BLOCKED BY STEP 9 |
 
@@ -298,7 +298,7 @@ When complete:
 
 # Step 7 — Implement Gmail/provider OAuth
 
-Status: **BLOCKED — Gmail connect verified; refresh and disconnect/revoke tests pending**
+Status: **COMPLETE**
 
 Checklist:
 
@@ -311,8 +311,8 @@ Checklist:
 - [x] Apply the Step 7 migration to live Supabase.
 - [x] Deploy the `provider-oauth` Edge Function.
 - [x] Test connect.
-- [ ] Test disconnect/revoke.
-- [ ] Test refresh/session behavior.
+- [x] Test disconnect/revoke.
+- [x] Test refresh/session behavior.
 - [x] Verify no token leakage.
 - [x] Commit/push local implementation.
 
@@ -328,9 +328,10 @@ Results:
 - Dashboard sync fix: PASS locally — ordinary browser settings saves no longer include or overwrite `provider_connection_status`; existing settings are updated in place and new rows are inserted with the database default. Added a regression assertion to the Step 7 test.
 - Deployment verification: PASS — Pages workflow run `42255133822` completed successfully for `f41fcf5`; the live bridge contains the editable-settings-only update path. An already-open pre-fix browser tab rewrote the public status once after the first repair, so the live status was repaired again and now verifies `private_status = connected` and `public_status = connected`. The user must close old dashboard tabs and hard-refresh before lifecycle testing.
 - Real dashboard verification: PASS — after closing stale callback/dashboard tabs and hard-refreshing the live URL, the owner dashboard now displays the Gmail provider as connected. Replaying the old callback URL remains correctly rejected as a single-use/expired OAuth state and does not invalidate the stored connection.
+- Final lifecycle verification: PASS — the owner refreshed the live dashboard and it remained connected, then selected `Disconnect & revoke`. The dashboard showed `Access revoked`, `Email provider: Not connected`, and automatic sending remained `Disabled`. Live Supabase verification shows the Gmail provider status `revoked` in both private and public state, with access and refresh tokens cleared; applications, opportunities, and email drafts remain zero. One short-lived pending OAuth state remains from the prior test attempt and is active only until its normal expiry; it contains no token material.
 - Commit: `cb43c0f` — Implement backend-only Gmail provider OAuth. This preserves the current Step 7 blocker; it does not claim live provider verification or production deployment.
 - Fix commit: `ced1b4a` — Prevent ordinary dashboard settings saves from overwriting the connected provider status.
-- Blockers: The permanent dashboard sync fix still requires Pages deployment and live browser verification. Refresh/session and disconnect/revoke remain untested through the real signed-in dashboard session. No automatic sending or schedule was created. Step 7 must remain blocked until the full account-authorization lifecycle is explicitly tested.
+- Blockers: None for Step 7. Step 8 is intentionally not started. No automatic sending or schedule was created.
 
 When complete:
 
@@ -342,7 +343,7 @@ When complete:
 
 # Step 8 — Add Application Monitor endpoint + dry run
 
-Status: **BLOCKED BY STEP 7**
+Status: **NOT STARTED**
 
 Checklist:
 
