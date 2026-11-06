@@ -500,8 +500,7 @@
       opportunity_types: settingsStringList(state.opportunityTypes, ['internship', 'research']),
       approved_profile_sources: sources,
       sender_identity_email: state.connectedEmail || null,
-      sender_identity_name: state.senderIdentityName || null,
-      provider_connection_status: providerStatus(state.providerConnectionStatus || (state.emailProviderConnected ? 'connected' : 'not_connected'))
+      sender_identity_name: state.senderIdentityName || null
     };
   }
 
@@ -552,7 +551,14 @@
 
   async function syncUserSettings() {
     if (!bridgeUser) return;
-    var result = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id' });
+    // Provider authorization is managed only by provider-oauth. Updating the
+    // editable settings in place prevents a stale browser payload from
+    // overwriting provider_connection_status during an ordinary save.
+    var existing = await bridgeClient.from('user_settings').select('user_id').eq('user_id', bridgeUser.id).maybeSingle();
+    if (existing.error) throw existing.error;
+    var result = existing.data
+      ? await bridgeClient.from('user_settings').update(settingsRow()).eq('user_id', bridgeUser.id)
+      : await bridgeClient.from('user_settings').insert(settingsRow());
     if (result.error) throw result.error;
   }
 

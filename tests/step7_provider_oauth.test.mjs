@@ -45,6 +45,9 @@ test('OAuth endpoint validates sessions, binds callback state, and never sends m
 
 test('dashboard controls provider actions without coupling sender identity or exposing secrets', () => {
   assert.match(bridge, /functions\.invoke\('provider-oauth'/);
+  assert.match(bridge, /providerConnectionStatus = providerStatus\(result\.data\.provider_connection_status\)/);
+  assert.doesNotMatch(bridge.match(/function settingsRow\(\)[\s\S]*?\n  \}/)?.[0] || '', /provider_connection_status/);
+  assert.match(bridge, /from\('user_settings'\)\.update\(settingsRow\(\)\)/);
   assert.match(ui, /Connect Gmail/);
   assert.match(ui, /Disconnect & revoke/);
   assert.match(ui, /Automatic sending remains off/);
