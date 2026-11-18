@@ -403,20 +403,6 @@
     return false;
   }
 
-  async function saveVersionedRow(table, filters, row) {
-    var query = bridgeClient.from(table).select('id');
-    Object.keys(filters).forEach(function (key) { query = query.eq(key, filters[key]); });
-    var existing = await query.maybeSingle();
-    if (existing.error) throw existing.error;
-    if (existing.data) {
-      var updateResult = await bridgeClient.from(table).update(row).eq('id', existing.data.id);
-      if (updateResult.error) throw updateResult.error;
-    } else {
-      var insertResult = await bridgeClient.from(table).insert(row);
-      if (insertResult.error) throw insertResult.error;
-    }
-  }
-
   function cvSnapshot(opportunity) {
     return JSON.stringify({
       organization: opportunity.org,
@@ -426,6 +412,43 @@
       summary: opportunity.summary || '',
       missingSkills: opportunity.missingSkills || []
     });
+  }
+
+  // Automation-created artifacts are immutable. Reuse an exact existing artifact,
+  // or append a new browser revision instead of trying to overwrite its content.
+  async function syncVersionedArtifact(table, opportunityId, desired, matches) {
+    var columns = table === 'cv_versions'
+      ? 'id,version,is_current,automation_content_key,content'
+      : 'id,version,is_current,automation_content_key,recipient,subject,body';
+    var existingResult = await bridgeClient.from(table).select(columns)
+      .eq('user_id', bridgeUser.id).eq('opportunity_id', opportunityId)
+      .order('version', { ascending: true });
+    if (existingResult.error) throw existingResult.error;
+    var rows = existingResult.data || [];
+    var exact = rows.find(matches);
+
+    if (rows.length) {
+      var clearResult = await bridgeClient.from(table).update({ is_current: false })
+        .eq('user_id', bridgeUser.id).eq('opportunity_id', opportunityId);
+      if (clearResult.error) throw clearResult.error;
+    }
+
+    if (exact) {
+      var currentResult = await bridgeClient.from(table).update({ is_current: true }).eq('id', exact.id);
+      if (currentResult.error) throw currentResult.error;
+      return exact.version;
+    }
+
+    var maxVersion = rows.reduce(function (max, row) {
+      var version = Number(row.version);
+      return Number.isFinite(version) ? Math.max(max, version) : max;
+    }, 0);
+    var requestedVersion = Number(desired.version);
+    var nextVersion = maxVersion > 0 ? maxVersion + 1 : (Number.isFinite(requestedVersion) && requestedVersion > 0 ? requestedVersion : 1);
+    var insertRow = Object.assign({}, desired, { version: nextVersion, is_current: true });
+    var insertResult = await bridgeClient.from(table).insert(insertRow);
+    if (insertResult.error) throw insertResult.error;
+    return nextVersion;
   }
 
   async function syncNormalizedArtifacts() {
@@ -440,43 +463,32 @@
     for (var i = 0; i < opportunities.length; i += 1) {
       var opportunity = opportunities[i];
       var cvVersion = versionNumber(opportunity.cvVersion, 1);
-      var clearCvResult = await bridgeClient.from('cv_versions').update({ is_current: false })
-        .eq('user_id', bridgeUser.id).eq('opportunity_id', opportunity.id);
-      if (clearCvResult.error) throw clearCvResult.error;
-      await saveVersionedRow('cv_versions', {
-        user_id: bridgeUser.id,
-        opportunity_id: opportunity.id,
-        version: cvVersion
-      }, {
+      var cvContent = cvSnapshot(opportunity);
+      await syncVersionedArtifact('cv_versions', opportunity.id, {
         user_id: bridgeUser.id,
         opportunity_id: opportunity.id,
         version: cvVersion,
-        is_current: true,
         change_summary: cvVersion > 1 ? 'Dashboard revision using verified evidence only.' : 'Initial dashboard CV version.',
-        content: cvSnapshot(opportunity)
-      });
+        content: cvContent
+      }, function (row) { return row.content === cvContent; });
 
       var application = applicationsByOpportunity.get(opportunity.id);
       var emailBody = (state.emailDrafts && state.emailDrafts[opportunity.id]) || application?.body || '';
       var emailVersion = versionNumber(opportunity.emailVersion || application?.emailVersion, 1);
       var hasEmailArtifact = Boolean(emailBody || application?.subject || application?.body || emailVersion > 1);
       if (hasEmailArtifact) {
-        var clearEmailResult = await bridgeClient.from('email_drafts').update({ is_current: false })
-          .eq('user_id', bridgeUser.id).eq('opportunity_id', opportunity.id);
-        if (clearEmailResult.error) throw clearEmailResult.error;
-        await saveVersionedRow('email_drafts', {
+        var emailRecipient = application?.recipient || opportunity.contact || null;
+        var emailSubject = application?.subject || ('Application — ' + opportunity.position);
+        await syncVersionedArtifact('email_drafts', opportunity.id, {
           user_id: bridgeUser.id,
           opportunity_id: opportunity.id,
           version: emailVersion
-        }, {
-          user_id: bridgeUser.id,
-          opportunity_id: opportunity.id,
           application_id: application?.id || null,
-          recipient: application?.recipient || opportunity.contact || null,
-          subject: application?.subject || ('Application — ' + opportunity.position),
-          body: emailBody,
-          version: emailVersion,
-          is_current: true
+          recipient: emailRecipient,
+          subject: emailSubject,
+          body: emailBody
+        }, function (row) {
+          return row.recipient === emailRecipient && row.subject === emailSubject && row.body === emailBody;
         });
       }
     }

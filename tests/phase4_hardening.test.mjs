@@ -13,6 +13,10 @@ test('browser bridge syncs normalized application and artifact tables', () => {
   assert.match(bridge, /from\('application_records'\)/);
   assert.match(bridge, /from\('cv_versions'\)/);
   assert.match(bridge, /from\('email_drafts'\)/);
+  assert.match(bridge, /syncVersionedArtifact/);
+  assert.match(bridge, /automation_content_key/);
+  assert.match(bridge, /maxVersion/);
+  assert.doesNotMatch(bridge, /saveVersionedRow/);
   assert.match(bridge, /queueCloudOpportunityDeletion/);
   assert.match(bridge, /queueCloudApplicationDeletion/);
 });
