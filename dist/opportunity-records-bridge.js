@@ -482,7 +482,7 @@
         await syncVersionedArtifact('email_drafts', opportunity.id, {
           user_id: bridgeUser.id,
           opportunity_id: opportunity.id,
-          version: emailVersion
+          version: emailVersion,
           application_id: application?.id || null,
           recipient: emailRecipient,
           subject: emailSubject,
