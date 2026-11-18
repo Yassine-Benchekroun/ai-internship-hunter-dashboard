@@ -536,6 +536,21 @@
     state.profileSync = (runsResult.data || [])[0] || null;
   }
 
+  async function loadScheduleConfiguration() {
+    if (!bridgeClient || !bridgeUser) return;
+    var result = await bridgeClient.from('schedule_configuration')
+      .select('recurrence_enabled,automatic_sending_enabled,timezone,profile_time,discovery_time,monitor_times,manual_validations,last_successful_runs')
+      .eq('user_id', bridgeUser.id).maybeSingle();
+    if (result.error) {
+      if (['42P01', 'PGRST205'].indexOf(result.error.code) >= 0) {
+        state.scheduleConfiguration = null;
+        return;
+      }
+      throw result.error;
+    }
+    state.scheduleConfiguration = result.data || null;
+  }
+
   function runErrorCount(errors) {
     return Array.isArray(errors) ? errors.length : 0;
   }
@@ -659,6 +674,24 @@
     }
   }
 
+  async function manageProfileFact(action, factId, category, name, description) {
+    if (window.__AIH_SKIP_CLOUD_SYNC || window.__AIH_DEMO_PREVIEW || !bridgeClient || !bridgeUser || !bridgeReady) {
+      throw new Error('Sign in to manage the Verified Profile.');
+    }
+    var result = await bridgeClient.rpc('owner_manage_profile_fact', {
+      p_action: action,
+      p_fact_id: factId || null,
+      p_category: category || null,
+      p_name: name || null,
+      p_description: description || null
+    });
+    if (result.error) throw result.error;
+    await loadProfileRegistry();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    render();
+    return result.data || null;
+  }
+
   async function syncUserSettings() {
     if (!bridgeUser) return;
     // Provider authorization is managed only by provider-oauth. Updating the
@@ -674,6 +707,7 @@
 
   window.AIH_loadBackendSettings = loadUserSettings;
   window.AIH_saveBackendSettings = syncUserSettings;
+  window.AIH_manageProfileFact = manageProfileFact;
 
   async function providerOAuth(action) {
     if (!bridgeClient) throw new Error('Supabase is not configured.');
@@ -762,6 +796,12 @@
       return;
     }
     await loadUserSettings();
+    try {
+      await loadScheduleConfiguration();
+    } catch (error) {
+      console.error('Schedule configuration could not be loaded', error);
+      state.scheduleConfiguration = null;
+    }
     try {
       await loadProfileRegistry();
     } catch (error) {

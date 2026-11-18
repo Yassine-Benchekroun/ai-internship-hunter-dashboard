@@ -140,11 +140,12 @@ test('profile counts distinguish verified and review-needed facts', () => {
   assert.equal(JSON.stringify(api.profileCounts()), JSON.stringify({ total: 3, verified: 1, needsReview: 2, sourceMissing: 1 }));
 });
 
-test('the UI includes all future automation placeholders and no schedule trigger', () => {
+test('the UI exposes independent deployed schedules without creating a browser trigger', () => {
   assert.match(phase2Source, /Verified Profile Sync/);
   assert.match(phase2Source, /Opportunity Discovery & Application Preparation/);
   assert.match(phase2Source, /Application & Email Monitoring/);
-  assert.match(phase2Source, /Not scheduled/);
+  assert.match(phase2Source, /Deployed · disabled/);
+  assert.match(phase2Source, /recurrence_enabled/);
   assert.doesNotMatch(phase2Source, /schedule\(/);
 });
 
@@ -169,4 +170,17 @@ test('owner profile UI renders only backend-provided approved sources', () => {
   const ownerHtml = profileHTML();
   assert.match(ownerHtml, /href="https:\/\/github\.com\/example-profile"/);
   assert.match(ownerHtml, /Example profile/);
+});
+
+test('owner profile UI provides additive editing while hiding owner-removed facts', () => {
+  const { api, state } = loadPhase2();
+  state.profileFacts = [
+    { id: 'source-1', name: 'Python', category: 'skill', origin: 'source', verification_status: 'verified', verified: true },
+    { id: 'owner-1', name: 'Robotics', category: 'skill', origin: 'owner', owner_hidden: false, verification_status: 'unverified', verified: false },
+    { id: 'owner-2', name: 'Hidden', category: 'skill', origin: 'owner', owner_hidden: true, verification_status: 'rejected', verified: false }
+  ];
+  assert.equal(api.profileCounts().total, 2);
+  assert.match(phase2Source, /openProfileFactEditor/);
+  assert.match(phase2Source, /AIH_manageProfileFact/);
+  assert.match(phase2Source, /Owner entries are clearly labeled and reviewable/);
 });
