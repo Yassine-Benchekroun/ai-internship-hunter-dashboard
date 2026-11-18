@@ -26,6 +26,14 @@ test('the Supabase bridge round-trips editable Step 2 settings only', () => {
   assert.doesNotMatch(bridgeSource, /match_threshold|state\.threshold/);
 });
 
+test('ordinary dashboard persistence does not overwrite discovery and profile settings', () => {
+  const persistSource = bridgeSource.slice(bridgeSource.indexOf('window.persist = function'));
+  assert.doesNotMatch(persistSource, /syncUserSettings\(|user_settings/);
+  assert.match(bridgeSource, /function syncUserSettings\(fields\)/);
+  assert.match(bridgeSource, /\.update\(patch\)\.eq\('user_id', ownerId\)/);
+  assert.match(bridgeSource, /ignoreDuplicates: true/);
+});
+
 test('local backend persists Step 2 settings across refresh without inventing sources or countries', async () => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'aih-step2-'));
   const priorDataDir = process.env.AIH_DATA_DIR;

@@ -441,6 +441,23 @@
     });
   }
 
+  async function persistSettings(fields, message) {
+    try {
+      if (window.AIH_saveBackendSettings) await window.AIH_saveBackendSettings(fields);
+      persist();
+      render();
+      toast(message);
+    } catch {
+      toast('Settings could not be saved. Reload the page before trying again.', true);
+    }
+  }
+
+  function saveDailyQuota(value) {
+    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
+    state.qualityTarget = Number(value);
+    return persistSettings(['daily_opportunity_target'], 'Daily quota updated.');
+  }
+
   function saveBackendSettings() {
     if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
     var countries = document.getElementById('phase2-target-countries');
@@ -458,9 +475,7 @@
     state.opportunityTypes = parseSettingsList(types && types.value);
     state.domainRelevanceEnabled = !domain || domain.value === 'enabled';
     state.approvedProfileSources = parsedSources;
-    persist();
-    render();
-    toast('Backend settings saved. Empty sources and countries remain empty until configured.');
+    return persistSettings(['target_countries', 'opportunity_types', 'domain_relevance_enabled', 'approved_profile_sources'], 'Discovery and profile settings saved.');
   }
 
   // This is the single authoritative Settings renderer. index.html keeps only
@@ -484,7 +499,7 @@
       '<div class="settings-grid phase2-settings-grid">' +
       '<div class="setting-card"><div class="panel-head"><h2>Matching & discovery</h2></div>' +
       '<div class="setting-row"><div><div class="setting-name">Match threshold</div><div class="setting-help">Top Matches score 70–100. Lower Matches score 0–69.</div></div><span class="pill cyan">Fixed at ' + MATCH_THRESHOLD + '</span></div>' +
-      '<div class="setting-row"><div><label for="phase2-daily-quota" class="setting-name">Daily discovery quota</label><div class="setting-help">Required number of new, verified opportunities per day.</div>' + (quotaSummary ? '<div class="setting-help">Last run · ' + esc(quotaSummary) + '</div>' : '') + '</div><select id="phase2-daily-quota" class="select" onchange="state.qualityTarget=Number(this.value);persist();toast(\'Daily quota updated\')">' + targetOptions.map(function (value) { return '<option value="' + value + '"' + (state.qualityTarget === value ? ' selected' : '') + '>' + value + ' opportunities</option>'; }).join('') + '</select></div>' +
+      '<div class="setting-row"><div><label for="phase2-daily-quota" class="setting-name">Daily discovery quota</label><div class="setting-help">Required number of new, verified opportunities per day.</div>' + (quotaSummary ? '<div class="setting-help">Last run · ' + esc(quotaSummary) + '</div>' : '') + '</div><select id="phase2-daily-quota" class="select" onchange="saveDailyQuota(this.value)">' + targetOptions.map(function (value) { return '<option value="' + value + '"' + (state.qualityTarget === value ? ' selected' : '') + '>' + value + ' opportunities</option>'; }).join('') + '</select></div>' +
       '<div class="setting-row"><div><div class="setting-name">Domain relevance filter</div><div class="setting-help">Unrelated opportunities are filtered before scoring.</div></div><select id="phase2-domain-relevance" class="select"><option value="enabled" ' + (state.domainRelevanceEnabled ? 'selected' : '') + '>Enabled</option><option value="disabled" ' + (!state.domainRelevanceEnabled ? 'selected' : '') + '>Disabled</option></select></div>' +
       '<div class="setting-row"><div><div class="setting-name">Opportunity types</div><div class="setting-help">Stored in backend settings and used by future discovery.</div></div><input id="phase2-opportunity-types" class="input" value="' + esc(settingsListInput(state.opportunityTypes)) + '" placeholder="internship, research"/></div></div>' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Approved sources & countries</h2><div class="panel-kicker">Backend-authoritative values; no choices are invented.</div></div><span class="pill ' + (state.approvedProfileSources.length ? 'cyan' : 'yellow') + '">' + (state.approvedProfileSources.length ? state.approvedProfileSources.length + ' source' + (state.approvedProfileSources.length === 1 ? '' : 's') : 'Sources not configured') + '</span></div>' +
@@ -572,9 +587,7 @@
       return;
     }
     state.connectedEmail = email;
-    persist();
-    render();
-    toast(email ? 'Sender identity saved. Provider connection unchanged.' : 'Sender identity cleared.');
+    return persistSettings(['sender_identity_email'], email ? 'Sender identity saved. Provider connection unchanged.' : 'Sender identity cleared.');
   }
 
   function renderPhase2Enhancements() {
@@ -648,6 +661,7 @@
   };
   toggleConnection = function () { navigate('settings'); toast('Sender identity and provider connection are managed separately in Settings.'); };
   window.saveSenderIdentity = saveSenderIdentity;
+  window.saveDailyQuota = saveDailyQuota;
   window.saveBackendSettings = saveBackendSettings;
   window.openProfileFactEditor = openProfileFactEditor;
   window.saveProfileFact = saveProfileFact;

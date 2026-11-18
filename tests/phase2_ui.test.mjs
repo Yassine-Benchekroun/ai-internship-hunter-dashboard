@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const phase2Source = fs.readFileSync(new URL('../dist/phase2-ui.js', import.meta.url), 'utf8');
 
-function loadPhase2(opportunities = []) {
+function loadPhase2(opportunities = [], saveSettings) {
   const state = {
     threshold: 82,
     opportunities,
@@ -42,7 +42,7 @@ function loadPhase2(opportunities = []) {
     URL,
     MATCH_THRESHOLD: 70,
     state,
-    window: { __AIH_OWNER_SESSION: null },
+    window: { __AIH_OWNER_SESSION: null, AIH_saveBackendSettings: saveSettings },
     pageIntro: () => '',
     icon: () => '',
     esc: (value) => String(value ?? ''),
@@ -62,7 +62,7 @@ function loadPhase2(opportunities = []) {
   };
   vm.createContext(context);
   vm.runInContext(phase2Source, context, { filename: 'phase2-ui.js' });
-  return { api: context.window.AIH_phase2, saveSenderIdentity: context.window.saveSenderIdentity, profileHTML: context.profileHTML, settingsHTML: context.settingsHTML, state };
+  return { api: context.window.AIH_phase2, saveDailyQuota: context.window.saveDailyQuota, saveSenderIdentity: context.window.saveSenderIdentity, profileHTML: context.profileHTML, settingsHTML: context.settingsHTML, state };
 }
 
 test('score classification uses a fixed 70 boundary despite saved legacy values', () => {
@@ -84,6 +84,14 @@ test('settings show a read-only cutoff and a numeric quota with the recorded sho
   assert.doesNotMatch(html, /type="range"|setThreshold/);
   assert.match(html, /<option value="20" selected>20 opportunities<\/option>/);
   assert.match(html, /24 of 30 new opportunities · 6 short of quota/);
+});
+
+test('changing the daily quota saves only the quota field', async () => {
+  const writes = [];
+  const { saveDailyQuota, state } = loadPhase2([], async fields => writes.push(Array.from(fields)));
+  await saveDailyQuota('20');
+  assert.equal(state.qualityTarget, 20);
+  assert.deepEqual(writes, [['daily_opportunity_target']]);
 });
 
 test('older scores are reclassified without changing application status or restoring hidden cards', () => {
@@ -180,7 +188,8 @@ test('Step 2 settings UI preserves empty backend source and country values', () 
   assert.match(phase2Source, /state\.approvedProfileSources = Array\.isArray\(state\.approvedProfileSources\) \? state\.approvedProfileSources : \[\]/);
   assert.match(phase2Source, /id="phase2-target-countries"/);
   assert.match(phase2Source, /id="phase2-approved-sources"/);
-  assert.match(phase2Source, /Empty sources and countries remain empty until configured/);
+  assert.match(phase2Source, /state\.countries = parseSettingsList\(countries && countries\.value\)/);
+  assert.match(phase2Source, /state\.approvedProfileSources = parsedSources/);
 });
 
 test('owner profile UI renders only backend-provided approved sources', () => {

@@ -11,6 +11,7 @@
   var backendSettingsLoaded = false;
   var knownOpportunityIds = new Set();
   var syncQueue = Promise.resolve();
+  var settingsQueue = Promise.resolve();
   var priorPersist = window.persist;
 
   function isUuid(value) {
@@ -669,7 +670,7 @@
       backendSettingsLoaded = true;
       state.countries = [];
       state.approvedProfileSources = [];
-      var initialSettings = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id' });
+      var initialSettings = await bridgeClient.from('user_settings').upsert(settingsRow(), { onConflict: 'user_id', ignoreDuplicates: true });
       if (initialSettings.error) throw initialSettings.error;
     }
   }
@@ -694,17 +695,26 @@
     return result.data || null;
   }
 
-  async function syncUserSettings() {
-    if (!bridgeUser) return;
-    // Provider authorization is managed only by provider-oauth. Updating the
-    // editable settings in place prevents a stale browser payload from
-    // overwriting provider_connection_status during an ordinary save.
-    var existing = await bridgeClient.from('user_settings').select('user_id').eq('user_id', bridgeUser.id).maybeSingle();
-    if (existing.error) throw existing.error;
-    var result = existing.data
-      ? await bridgeClient.from('user_settings').update(settingsRow()).eq('user_id', bridgeUser.id)
-      : await bridgeClient.from('user_settings').insert(settingsRow());
-    if (result.error) throw result.error;
+  async function syncUserSettings(fields) {
+    if (!bridgeClient || window.location.protocol === 'file:') return;
+    if (!bridgeUser || !backendSettingsLoaded || window.__AIH_SKIP_CLOUD_SYNC || window.__AIH_DEMO_PREVIEW) {
+      throw new Error('Load the owner settings before saving.');
+    }
+    // Only explicit edits write settings. Opportunity saves may hold an
+    // older settings snapshot and must never write it back to the database.
+    var ownerId = bridgeUser.id;
+    var values = settingsRow();
+    var patch = {};
+    fields.forEach(function (field) {
+      if (field !== 'user_id' && Object.hasOwn(values, field)) patch[field] = values[field];
+    });
+    var save = settingsQueue.then(async function () {
+      if (!bridgeUser || bridgeUser.id !== ownerId) throw new Error('The signed-in account changed.');
+      var result = await bridgeClient.from('user_settings').update(patch).eq('user_id', ownerId).select('user_id').single();
+      if (result.error) throw result.error;
+    });
+    settingsQueue = save.catch(function () {});
+    return save;
   }
 
   window.AIH_loadBackendSettings = loadUserSettings;
@@ -874,7 +884,6 @@
     var priorResult;
     try { priorResult = priorPersist && priorPersist(); } catch (error) { console.error('Dashboard persistence failed', error); }
     syncQueue = syncQueue.then(async function () {
-      await syncUserSettings();
       var opportunityQueueChanged = await syncOpportunityRecords();
       var applicationQueueChanged = await syncApplicationRecords();
       await syncNormalizedArtifacts();
