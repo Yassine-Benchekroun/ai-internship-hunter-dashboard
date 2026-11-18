@@ -80,7 +80,6 @@ begin
     where id = p_fact_id and user_id = v_user_id
     for update;
     if v_fact_id is null then raise exception 'profile_fact_not_found'; end if;
-    if v_origin <> 'owner' then raise exception 'source_fact_read_only'; end if;
 
     update public.profile_facts
     set owner_hidden = true,
@@ -89,7 +88,7 @@ begin
     where id = v_fact_id and user_id = v_user_id;
 
     select to_jsonb(f) into v_fact from public.profile_facts f where f.id = v_fact_id;
-    return jsonb_build_object('action', 'removed', 'fact', v_fact);
+    return jsonb_build_object('action', case when v_origin = 'owner' then 'removed' else 'hidden_source' end, 'fact', v_fact);
   end if;
 
   if v_category in ('skills') then v_category := 'skill'; end if;

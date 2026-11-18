@@ -122,7 +122,7 @@
     var grouped = {};
     profileCategories.forEach(function (item) { grouped[item[0]] = []; });
     (state.profileFacts || []).filter(function (fact) {
-      return !(fact && fact.origin === 'owner' && fact.owner_hidden === true);
+      return !(fact && fact.owner_hidden === true);
     }).forEach(function (fact) {
       var key = profileCategoryKey(fact.category);
       if (!grouped[key]) grouped[key] = [];
@@ -136,7 +136,7 @@
 
   function profileCounts() {
     var facts = (state.profileFacts || []).filter(function (fact) {
-      return !(fact && fact.origin === 'owner' && fact.owner_hidden === true);
+      return !(fact && fact.owner_hidden === true);
     });
     return {
       total: facts.length,
@@ -298,7 +298,7 @@
     var ownerManaged = fact.origin === 'owner';
     var actions = ownerManaged
       ? '<div class="phase2-fact-actions"><button class="btn small ghost" onclick="openProfileFactEditor(\'\',\'' + esc(fact.id) + '\')">Edit</button><button class="btn small danger" onclick="removeProfileFact(\'' + esc(fact.id) + '\')">Remove</button></div>'
-      : '<span class="phase2-fact-origin">Source-managed</span>';
+      : '<div class="phase2-fact-actions"><span class="phase2-fact-origin">Source-managed</span><button class="btn small danger" onclick="removeProfileFact(\'' + esc(fact.id) + '\')">Remove</button></div>';
     return '<div class="phase2-fact"><div class="phase2-fact-main"><div class="phase2-fact-name">' + esc(fact.name || 'Unnamed fact') + '</div><div class="phase2-fact-description">' + esc(fact.description || 'No additional description recorded.') + '</div><div class="phase2-fact-evidence">' + evidenceHTML(fact) + '</div></div><div class="phase2-fact-meta"><span class="phase2-status ' + stateLabel.css + '">' + stateLabel.label + '</span><span>' + (ownerManaged ? 'Owner-added · review required' : 'Last verified · ' + esc(formatProfileDate(fact.last_verified_at))) + '</span>' + actions + '</div></div>';
   }
 
@@ -350,7 +350,11 @@
     if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
     var fact = (state.profileFacts || []).find(function (item) { return item.id === id; });
     var name = fact?.name || 'this fact';
-    confirmModal('Remove owner-added profile fact?', 'Hide “' + name + '” from the Verified Profile registry? Source-managed facts cannot be removed here.', 'Remove fact', function () {
+    var sourceManaged = fact && fact.origin !== 'owner';
+    var prompt = sourceManaged
+      ? 'Hide “' + name + '” from the Verified Profile registry? Its source evidence stays in history and it may return if a future approved sync confirms it again.'
+      : 'Hide “' + name + '” from the Verified Profile registry? The owner entry remains recoverable in the backend history.';
+    confirmModal(sourceManaged ? 'Remove source-managed profile fact?' : 'Remove owner-added profile fact?', prompt, 'Remove fact', function () {
       if (typeof window.AIH_manageProfileFact !== 'function') { toast('Profile editing is not available until the owner session is loaded.', true); return; }
       window.AIH_manageProfileFact('remove', id, null, null, null).then(function () {
         toast('Owner-added profile fact removed.');

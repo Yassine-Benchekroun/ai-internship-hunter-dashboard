@@ -23,13 +23,14 @@ create policy "Owner can update owner profile facts"
   on public.profile_facts for update to authenticated
   using (
     (select auth.uid()) = user_id
-    and origin = 'owner'
+    and origin in ('owner', 'source')
   )
   with check (
     (select auth.uid()) = user_id
-    and origin = 'owner'
-    and verified = false
-    and verification_status in ('unverified', 'rejected')
+    and (
+      (origin = 'owner' and verified = false and verification_status in ('unverified', 'rejected'))
+      or (origin = 'source' and owner_hidden = true and verified = false and verification_status = 'rejected')
+    )
   );
 
 drop policy if exists "Owner can insert owner profile evidence" on public.profile_fact_evidence;

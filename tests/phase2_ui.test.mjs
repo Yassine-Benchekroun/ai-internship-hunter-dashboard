@@ -177,10 +177,13 @@ test('owner profile UI provides additive editing while hiding owner-removed fact
   state.profileFacts = [
     { id: 'source-1', name: 'Python', category: 'skill', origin: 'source', verification_status: 'verified', verified: true },
     { id: 'owner-1', name: 'Robotics', category: 'skill', origin: 'owner', owner_hidden: false, verification_status: 'unverified', verified: false },
-    { id: 'owner-2', name: 'Hidden', category: 'skill', origin: 'owner', owner_hidden: true, verification_status: 'rejected', verified: false }
+    { id: 'owner-2', name: 'Hidden', category: 'skill', origin: 'owner', owner_hidden: true, verification_status: 'rejected', verified: false },
+    { id: 'source-2', name: 'Hidden source', category: 'skill', origin: 'source', owner_hidden: true, verification_status: 'rejected', verified: false }
   ];
   assert.equal(api.profileCounts().total, 2);
   assert.match(phase2Source, /openProfileFactEditor/);
   assert.match(phase2Source, /AIH_manageProfileFact/);
+  assert.match(phase2Source, /removeProfileFact/);
+  assert.match(phase2Source, /Source-managed/);
   assert.match(phase2Source, /Owner entries are clearly labeled and reviewable/);
 });

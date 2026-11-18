@@ -678,13 +678,15 @@
     if (window.__AIH_SKIP_CLOUD_SYNC || window.__AIH_DEMO_PREVIEW || !bridgeClient || !bridgeUser || !bridgeReady) {
       throw new Error('Sign in to manage the Verified Profile.');
     }
-    var result = await bridgeClient.rpc('owner_manage_profile_fact', {
-      p_action: action,
-      p_fact_id: factId || null,
-      p_category: category || null,
-      p_name: name || null,
-      p_description: description || null
-    });
+    var result = action === 'remove'
+      ? await bridgeClient.rpc('owner_remove_profile_fact', { p_fact_id: factId || null })
+      : await bridgeClient.rpc('owner_manage_profile_fact', {
+        p_action: action,
+        p_fact_id: factId || null,
+        p_category: category || null,
+        p_name: name || null,
+        p_description: description || null
+      });
     if (result.error) throw result.error;
     await loadProfileRegistry();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));

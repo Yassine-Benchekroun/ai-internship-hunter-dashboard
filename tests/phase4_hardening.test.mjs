@@ -19,6 +19,7 @@ test('browser bridge syncs normalized application and artifact tables', () => {
   assert.doesNotMatch(bridge, /saveVersionedRow/);
   assert.match(bridge, /queueCloudOpportunityDeletion/);
   assert.match(bridge, /queueCloudApplicationDeletion/);
+  assert.match(bridge, /owner_remove_profile_fact/);
 });
 
 test('opportunity reconciliation only deletes explicitly queued records', () => {
@@ -26,6 +27,11 @@ test('opportunity reconciliation only deletes explicitly queued records', () => 
   assert.doesNotMatch(bridge, /knownOpportunityIds\)\.filter/);
   assert.match(ui, /queueCloudOpportunityDeletion/);
   assert.match(ui, /queueCloudApplicationDeletion/);
+});
+
+test('permanent opportunity history ignores hidden active-view type filters', () => {
+  assert.match(ui, /function matchesFilters\(o,includeType=true\)/);
+  assert.match(ui, /state\.opportunities\.filter\(o=>matchesFilters\(o,false\)\)/);
 });
 
 test('source-less manual records stay source-less after cloud hydration', () => {
