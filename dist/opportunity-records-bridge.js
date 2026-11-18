@@ -495,9 +495,6 @@
   }
 
   function settingsRow() {
-    var threshold = Number(state.threshold);
-    if (!Number.isFinite(threshold)) threshold = 70;
-    threshold = Math.max(0, Math.min(100, Math.round(threshold)));
     var target = Number(state.qualityTarget);
     if (!Number.isFinite(target)) target = 30;
     target = Math.max(0, Math.min(1000, Math.round(target)));
@@ -505,7 +502,6 @@
     var sources = backendSettingsLoaded ? approvedProfileSources(state.approvedProfileSources) : [];
     return {
       user_id: bridgeUser.id,
-      match_threshold: threshold,
       daily_opportunity_target: target,
       domain_relevance_enabled: state.domainRelevanceEnabled !== false,
       target_countries: countries,
@@ -643,6 +639,11 @@
         recordsUpdated: bounded(run.updated_count), duplicatesIgnored: bounded(run.duplicate_count),
         opportunitiesReceived: bounded(counts.discovered), opportunitiesInserted: bounded(run.inserted_count),
         opportunitiesUpdated: bounded(run.updated_count), messagesScanned: bounded(counts.messages_scanned),
+        dailyTarget: counts.daily_target == null ? null : bounded(counts.daily_target),
+        dailyDiscovered: counts.daily_discovered == null ? null : bounded(counts.daily_discovered),
+        dailyShortfall: counts.daily_shortfall == null ? null : bounded(counts.daily_shortfall),
+        dryRunNewCandidates: counts.dry_run_new_candidates == null ? null : bounded(counts.dry_run_new_candidates),
+        missingSearchProvider: Array.isArray(run.errors) && run.errors.includes('search_provider_not_configured'),
         applicationsConsidered: bounded(run.processed_records), applicationsUpdated: bounded(counts.statuses_updated),
         followUpDraftsCreated: bounded(counts.drafts_created), errorCount: runErrorCount(run.errors)
       };
@@ -654,7 +655,6 @@
     if (result.error) throw result.error;
     if (result.data) {
       backendSettingsLoaded = true;
-      state.threshold = result.data.match_threshold;
       state.qualityTarget = result.data.daily_opportunity_target;
       state.countries = settingsStringList(result.data.target_countries);
       state.domainRelevanceEnabled = result.data.domain_relevance_enabled !== false;

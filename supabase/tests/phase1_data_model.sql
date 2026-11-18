@@ -170,18 +170,22 @@ begin
     raise exception 'Persisted zero-score classification test failed.';
   end if;
 
-  insert into public.user_settings (user_id, match_threshold)
-  values (owner_id, 80)
-  on conflict (user_id) do update set match_threshold = excluded.match_threshold;
+  begin
+    insert into public.user_settings (user_id, match_threshold)
+    values (owner_id, 80)
+    on conflict (user_id) do update set match_threshold = excluded.match_threshold;
+    raise exception 'Fixed threshold accepted a value other than 70.';
+  exception when check_violation then null;
+  end;
   insert into public.opportunity_records (
-    user_id, dedupe_key, organization, position, source_url, match_score
+    user_id, dedupe_key, organization, position, source_url, match_score, active_sections
   ) values (
     owner_id,
     public.opportunity_dedupe_key('https://example.com/opportunity/threshold', 'Phase 1 Threshold Org', 'AI Threshold Intern'),
-    'Phase 1 Threshold Org', 'AI Threshold Intern', 'https://example.com/opportunity/threshold', 74
+    'Phase 1 Threshold Org', 'AI Threshold Intern', 'https://example.com/opportunity/threshold', 74, array['lower']::text[]
   ) returning classification into threshold_classification;
-  if threshold_classification <> 'lower' then
-    raise exception 'Backend threshold setting was ignored.';
+  if threshold_classification <> 'top' then
+    raise exception 'Backend did not apply the fixed threshold.';
   end if;
 
   -- "ready" is not a sent state in the compatibility boolean.

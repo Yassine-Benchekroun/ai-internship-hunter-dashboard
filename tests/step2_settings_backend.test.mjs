@@ -8,9 +8,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bridgeSource = await readFile(path.join(root, 'dist', 'opportunity-records-bridge.js'), 'utf8');
 
-test('the Supabase bridge round-trips every Step 2 setting field', () => {
+test('the Supabase bridge round-trips editable Step 2 settings only', () => {
   for (const field of [
-    'match_threshold',
     'daily_opportunity_target',
     'domain_relevance_enabled',
     'target_countries',
@@ -24,6 +23,7 @@ test('the Supabase bridge round-trips every Step 2 setting field', () => {
   assert.match(bridgeSource, /state\.approvedProfileSources = approvedProfileSources\(result\.data\.approved_profile_sources\)/);
   assert.match(bridgeSource, /var countries = backendSettingsLoaded \? settingsStringList\(state\.countries\) : \[\]/);
   assert.match(bridgeSource, /var sources = backendSettingsLoaded \? approvedProfileSources\(state\.approvedProfileSources\) : \[\]/);
+  assert.doesNotMatch(bridgeSource, /match_threshold|state\.threshold/);
 });
 
 test('local backend persists Step 2 settings across refresh without inventing sources or countries', async () => {
@@ -48,10 +48,11 @@ test('local backend persists Step 2 settings across refresh without inventing so
       senderIdentityName: 'Sender',
       providerConnectionStatus: 'not_connected'
     };
-    assert.deepEqual(backend.settingsPayload(await backend.writeState(saved)), saved);
+    const expected = { ...saved, threshold: 70 };
+    assert.deepEqual(backend.settingsPayload(await backend.writeState(saved)), expected);
 
     const refreshed = backend.settingsPayload(await backend.readState());
-    assert.deepEqual(refreshed, saved);
+    assert.deepEqual(refreshed, expected);
     const fullState = await backend.readState();
     assert.deepEqual(fullState.countries, []);
     assert.deepEqual(fullState.approvedProfileSources, []);

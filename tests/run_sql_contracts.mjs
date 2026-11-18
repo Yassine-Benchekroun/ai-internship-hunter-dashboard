@@ -40,11 +40,15 @@ try {
   await db.exec(`insert into public.user_settings(user_id) values('3a419f7d-36e0-43d5-aa39-156b3177b84a') on conflict do nothing;`);
   const result = await db.exec(await readFile('supabase/tests/independent_schedules.sql', 'utf8'));
   for (const item of result) if (item.rows?.length) console.log(item.rows);
+  await db.exec(await readFile('supabase/tests/discovery_quota.sql', 'utf8'));
+  console.log('Fixed match cutoff and daily discovery quota passed.');
   await db.exec('begin; set local role service_role;');
   const liveRun = (await db.query(`select public.automation_begin_schedule('3a419f7d-36e0-43d5-aa39-156b3177b84a','profile_sync',gen_random_uuid(),true,'[]') as value`)).rows[0].value;
   await db.query('select public.automation_finish_schedule($1,$2,$3,$4)', [liveRun.run_id, 'blocked', {}, ['source_unavailable']]);
   const ingested = (await db.query(`select public.automation_ingest_opportunities($1) as value`, [{user_id:'3a419f7d-36e0-43d5-aa39-156b3177b84a',opportunities:[{organization:'Fixture',position:'AI research intern',source_url:'https://example.org/role-check',domain_relevant:true,match_score:68}]}])).rows[0].value;
   if (!ingested.accepted?.length) throw new Error('Service role ingestion failed');
+  const dailyCount = (await db.query("select public.automation_discovery_daily_count('3a419f7d-36e0-43d5-aa39-156b3177b84a', now()) as value")).rows[0].value;
+  if (dailyCount !== 0) throw new Error('Quota counted an ingestion outside a discovery run');
   await db.query('select public.automation_prepare_artifacts($1,$2,$3,$4,$5)', ['3a419f7d-36e0-43d5-aa39-156b3177b84a',ingested.accepted[0].opportunity_id,{content:'Verified CV with \\ and Unicode é'}, {body:'Draft with \\ and Unicode é'}, 'role-test']);
   await db.exec('rollback');
   console.log('Service-role run and artifact contract permissions passed.');

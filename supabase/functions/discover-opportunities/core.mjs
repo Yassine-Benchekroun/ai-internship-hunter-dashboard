@@ -94,7 +94,11 @@ const vocabulary = ['Python','C++','Java','JavaScript','TypeScript','SQL','MATLA
 function mentions(haystack, needle) {
   return new RegExp(`(^|[^a-z0-9])${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`, 'i').test(haystack);
 }
-export function scoreOpportunity(opportunity, facts, threshold) {
+export const MATCH_THRESHOLD = 70;
+export function classifyOpportunity(score) {
+  return score >= MATCH_THRESHOLD ? 'top' : 'lower';
+}
+export function scoreOpportunity(opportunity, facts) {
   const verified = facts.filter(f => f.verification_status === 'verified');
   const requirementText = opportunity.requirements.join(' ');
   const fullText = `${opportunity.position} ${opportunity.description} ${requirementText}`;
@@ -119,7 +123,7 @@ export function scoreOpportunity(opportunity, facts, threshold) {
     education: degreeMatch ? 'Degree wording overlaps; enrollment/graduation requirements require review.' : 'Not established',
     eligibility: 'Not established; no work authorization inferred', access: 'Not established; target-country preference is not access evidence',
   } }, verified_skills: matched, missing_skills: requested.filter(term => !matched.includes(term)), projects: relevantProjects.map(f => f.name),
-  classification: score >= threshold ? 'top' : 'lower' };
+  classification: classifyOpportunity(score) };
 }
 export function prepareMaterials(opportunity, facts, master, identity) {
   if (!master?.content?.trim()) throw new Error('master_cv_content_unavailable');

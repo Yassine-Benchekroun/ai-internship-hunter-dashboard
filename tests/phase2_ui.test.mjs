@@ -5,10 +5,10 @@ import vm from 'node:vm';
 
 const phase2Source = fs.readFileSync(new URL('../dist/phase2-ui.js', import.meta.url), 'utf8');
 
-function loadPhase2() {
+function loadPhase2(opportunities = []) {
   const state = {
-    threshold: 70,
-    opportunities: [],
+    threshold: 82,
+    opportunities,
     profileFacts: [],
     profileSync: null,
     connected: true,
@@ -40,6 +40,7 @@ function loadPhase2() {
     document,
     innerWidth: 1200,
     URL,
+    MATCH_THRESHOLD: 70,
     state,
     window: { __AIH_OWNER_SESSION: null },
     pageIntro: () => '',
@@ -50,7 +51,6 @@ function loadPhase2() {
     profileHTML: () => '',
     settingsHTML: () => '',
     statusPill: () => '',
-    setThreshold: () => {},
     classifyOpportunity: () => {},
     toggleConnection: () => {},
     render: () => {},
@@ -62,17 +62,44 @@ function loadPhase2() {
   };
   vm.createContext(context);
   vm.runInContext(phase2Source, context, { filename: 'phase2-ui.js' });
-  return { api: context.window.AIH_phase2, saveSenderIdentity: context.window.saveSenderIdentity, profileHTML: context.profileHTML, state };
+  return { api: context.window.AIH_phase2, saveSenderIdentity: context.window.saveSenderIdentity, profileHTML: context.profileHTML, settingsHTML: context.settingsHTML, state };
 }
 
-test('score classification uses the threshold boundary', () => {
+test('score classification uses a fixed 70 boundary despite saved legacy values', () => {
   const { api } = loadPhase2();
-  for (const [score, expected] of [[74, 'top'], [70, 'top'], [68, 'lower'], [62, 'lower'], [0, 'lower']]) {
+  for (const [score, expected] of [[74, 'top'], [70, 'top'], [69, 'lower'], [62, 'lower'], [0, 'lower']]) {
     const opportunity = { score, activeSections: ['new'] };
     api.classify(opportunity);
     assert.equal(opportunity.classification, expected);
     assert.deepEqual(opportunity.activeSections, [expected]);
   }
+});
+
+test('settings show a read-only cutoff and a numeric quota with the recorded shortfall', () => {
+  const { settingsHTML, state } = loadPhase2();
+  state.qualityTarget = 20;
+  state.runHealth.opportunityIngestion = { dailyTarget: 30, dailyDiscovered: 24, dailyShortfall: 6 };
+  const html = settingsHTML();
+  assert.match(html, /Fixed at 70/);
+  assert.doesNotMatch(html, /type="range"|setThreshold/);
+  assert.match(html, /<option value="20" selected>20 opportunities<\/option>/);
+  assert.match(html, /24 of 30 new opportunities · 6 short of quota/);
+});
+
+test('older scores are reclassified without changing application status or restoring hidden cards', () => {
+  const legacy = [
+    { score: 69, classification: 'top', activeSections: ['top'], status: 'Already Sent' },
+    { score: 70, classification: 'lower', activeSections: ['lower'], status: 'Needs review' },
+    { score: 70, classification: 'new', activeSections: ['new'] },
+    { score: 70, classification: 'top', activeSections: [] }
+  ];
+  loadPhase2(legacy);
+  assert.deepEqual(legacy, [
+    { score: 69, classification: 'lower', activeSections: ['lower'], status: 'Already Sent' },
+    { score: 70, classification: 'top', activeSections: ['top'], status: 'Needs review' },
+    { score: 70, classification: 'new', activeSections: ['new'] },
+    { score: 70, classification: 'top', activeSections: [] }
+  ]);
 });
 
 test('application status does not override match classification', () => {

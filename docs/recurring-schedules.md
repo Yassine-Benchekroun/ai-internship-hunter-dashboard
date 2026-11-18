@@ -40,7 +40,7 @@ Each opportunity is committed before preparation. The CV emphasizes matching ver
 
 Content hashes and row locks make preparation retries idempotent. Genuine new content appends versions; older automation artifacts cannot be overwritten. Identical legacy artifacts are reused without changing their content. A corrected title on an explicitly verified single-posting URL updates the existing opportunity. The original discovery time and linked history survive updates.
 
-The configured daily target is a target, not a promise of 30 verified postings. Source exhaustion, absent search credentials, network failures, or execution limits are visible in the run's safe error codes and partial/blocked status. The worker does not silently call an incomplete search successful.
+The daily quota is a minimum for successful discovery. Only distinct opportunities first saved by the discovery worker that calendar day count, using the owner's configured timezone. Rediscovered records and dry runs do not fill the quota. Failed attempts keep their verified results and the next attempt counts them toward the same day. If configured sources are exhausted, search access is missing, or the execution budget expires before the quota is reached, run health records a failed or blocked run with its exact shortfall and available error codes. Meeting the quota still requires enough unique, verifiable listings from working sources.
 
 ## Monitoring
 

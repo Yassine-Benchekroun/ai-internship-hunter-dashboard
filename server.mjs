@@ -56,7 +56,7 @@ function normalizeSettings(state) {
     ? state.providerConnectionStatus
     : 'not_connected';
   return {
-    threshold: Number.isFinite(Number(state.threshold)) ? Math.max(0, Math.min(100, Math.round(Number(state.threshold)))) : 70,
+    threshold: initialState.threshold,
     qualityTarget: Number.isFinite(Number(state.qualityTarget)) ? Math.max(0, Math.min(1000, Math.round(Number(state.qualityTarget)))) : 30,
     domainRelevanceEnabled: state.domainRelevanceEnabled !== false,
     countries: stringList(state.countries),

@@ -131,8 +131,12 @@ begin
   result_two:=public.automation_update_application(payload);
   if (result->>'follow_up_draft_id') is null or not (result_two->>'duplicate')::boolean or (select count(*) from public.email_drafts where application_id=app)<>1 then raise exception 'follow_up_replay_duplicate'; end if;
 
-  -- A threshold edit must not cause monitoring to change classification.
-  update public.user_settings set match_threshold=1 where user_id=owner_id;
+  -- The cutoff is immutable, and monitoring cannot change classification.
+  begin
+    update public.user_settings set match_threshold=1 where user_id=owner_id;
+    raise exception 'match_cutoff_was_editable';
+  exception when check_violation then null;
+  end;
   payload:=jsonb_build_object('user_id',owner_id,'application_id',app,'application_status','interview','provider','gmail','provider_message_id',fixture||'-message','provider_thread_id',fixture||'-thread','message_received_at',first_response,'last_response_at',first_response);
   result:=public.automation_update_application(payload);
   result_two:=public.automation_update_application(payload);

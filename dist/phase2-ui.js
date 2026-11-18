@@ -34,11 +34,11 @@
     state.opportunityTypes = Array.isArray(state.opportunityTypes) ? state.opportunityTypes : ['internship', 'research'];
     state.qualityTarget = Number.isFinite(Number(state.qualityTarget)) ? Math.max(0, Math.min(1000, Math.round(Number(state.qualityTarget)))) : 30;
     state.senderIdentityName = typeof state.senderIdentityName === 'string' ? state.senderIdentityName : '';
-  }
-
-  function thresholdValue() {
-    var value = Number(state.threshold);
-    return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 70;
+    (state.opportunities || []).forEach(function (opportunity) {
+      var sections = opportunity.activeSections;
+      if (!Array.isArray(sections) || sections.includes('new') || !sections.some(function (section) { return section === 'top' || section === 'lower'; })) return;
+      setScoreClassification(opportunity);
+    });
   }
 
   function isApplicationStatus(status) {
@@ -51,7 +51,7 @@
 
   function classificationForOpportunity(opportunity) {
     if (Array.isArray(opportunity.activeSections) && opportunity.activeSections.includes('new')) return 'new';
-    return Number(opportunity.score || 0) >= thresholdValue() ? 'top' : 'lower';
+    return Number(opportunity.score || 0) >= MATCH_THRESHOLD ? 'top' : 'lower';
   }
 
   function classificationLabel(classification) {
@@ -70,16 +70,20 @@
     return '<span class="pill phase2-application-status ' + css + '"><span class="phase2-pill-label">Application</span> ' + esc(value) + '</span>';
   }
 
-  function applyScoreClassification(opportunity) {
-    if (!opportunity) return;
+  function setScoreClassification(opportunity) {
     var sections = Array.isArray(opportunity.activeSections) ? opportunity.activeSections : [];
-    var rank = Number(opportunity.score || 0) >= thresholdValue() ? 'top' : 'lower';
+    var rank = Number(opportunity.score || 0) >= MATCH_THRESHOLD ? 'top' : 'lower';
     opportunity.activeSections = sections.filter(function (section) {
       return section !== 'new' && section !== 'top' && section !== 'lower';
     });
     opportunity.activeSections.push(rank);
     opportunity.classification = rank;
-    if (rank === 'top' && !opportunity.sent && applicationStatusLabel(opportunity.status) === 'Needs review') {
+  }
+
+  function applyScoreClassification(opportunity) {
+    if (!opportunity) return;
+    setScoreClassification(opportunity);
+    if (opportunity.classification === 'top' && !opportunity.sent && applicationStatusLabel(opportunity.status) === 'Needs review') {
       opportunity.status = 'Ready';
     }
   }
@@ -211,6 +215,17 @@
     return '<div class="phase2-run-health-card"><div class="phase2-run-health-card-head"><div><h3>' + esc(title) + '</h3><div class="panel-kicker">' + esc(description) + '</div></div><span class="pill ' + runHealthStatusClass(run) + '">' + esc(runHealthStatus(run)) + '</span></div><div class="phase2-run-health-meta"><span>Last recorded</span><strong>' + esc(runHealthDate(run)) + '</strong></div><div class="phase2-run-health-detail">' + esc(detail) + '</div></div>';
   }
 
+  function discoveryQuotaSummary(run) {
+    if (!run || run.dailyTarget == null || run.dailyDiscovered == null || run.dailyShortfall == null) return '';
+    var progress = run.dailyDiscovered + ' of ' + run.dailyTarget + ' new opportunities';
+    progress += run.dailyShortfall > 0 ? ' · ' + run.dailyShortfall + ' short of quota' : ' · quota met';
+    if (run.dryRun && run.dryRunNewCandidates != null) {
+      progress += ' · dry run found ' + run.dryRunNewCandidates + ' unsaved candidates';
+    }
+    if (run.missingSearchProvider) progress += ' · broad search provider is unconfigured';
+    return progress;
+  }
+
   function runHealthHTML() {
     var health = state.runHealth || {};
     var profile = health.profileSync;
@@ -222,6 +237,8 @@
     var ingestionDetail = ingestion
       ? ingestion.opportunitiesReceived + ' received · ' + ingestion.opportunitiesInserted + ' inserted · ' + ingestion.opportunitiesUpdated + ' updated · ' + ingestion.duplicatesIgnored + ' duplicates · ' + ingestion.errorCount + ' errors'
       : 'No opportunity ingestion run recorded';
+    var quotaSummary = discoveryQuotaSummary(ingestion);
+    if (quotaSummary) ingestionDetail = quotaSummary + ' · ' + ingestionDetail;
     var monitorDetail = monitor
       ? monitor.messagesScanned + ' messages scanned · ' + monitor.applicationsUpdated + ' applications updated · ' + monitor.followUpDraftsCreated + ' drafts · ' + monitor.errorCount + ' errors' + (monitor.dryRun ? ' · dry run' : '')
       : 'No application monitor run recorded';
@@ -462,11 +479,12 @@
     var schedulesEnabled = Boolean(state.scheduleConfiguration && state.scheduleConfiguration.recurrence_enabled);
     var scheduleStatus = schedulesEnabled ? '<span class="pill green">Scheduled</span>' : '<span class="pill yellow">Deployed · disabled</span>';
     var scheduleText = schedulesEnabled ? 'Recurring triggers are enabled for the configured owner account.' : 'Worker contracts are deployed, but recurring triggers remain disabled until manual validation is complete.';
-    return pageIntro('Control room', 'Settings', 'Tune matching, profile data, and automation safeguards. The three workers are deployed independently; recurrence is an explicit owner-controlled switch.', '') +
+    var quotaSummary = discoveryQuotaSummary(state.runHealth.opportunityIngestion);
+    return pageIntro('Control room', 'Settings', 'Configure discovery, profile data, and automation safeguards.', '') +
       '<div class="settings-grid phase2-settings-grid">' +
-      '<div class="setting-card"><div class="panel-head"><div><h2>Matching & discovery</h2><div class="panel-kicker">Quality over quota</div></div><span class="pill cyan">Manual control</span></div>' +
-      '<div class="setting-row"><div><div class="setting-name">Match threshold</div><div class="setting-help">Scores at or above this value are Top Matches. Lower scores remain valid and reviewable.</div></div><div class="range-row"><input type="range" min="50" max="90" step="1" value="' + thresholdValue() + '" oninput="setThreshold(this.value)"/><span class="range-value">' + thresholdValue() + '</span></div></div>' +
-      '<div class="setting-row"><div><div class="setting-name">Daily target</div><div class="setting-help">A ceiling for future discovery; never a reason to lower quality.</div></div><select class="select" onchange="state.qualityTarget=Number(this.value);persist();toast(\'Daily target updated\')">' + targetOptions.map(function (value) { return '<option ' + (state.qualityTarget === value ? 'selected' : '') + '>' + value + ' opportunities</option>'; }).join('') + '</select></div>' +
+      '<div class="setting-card"><div class="panel-head"><h2>Matching & discovery</h2></div>' +
+      '<div class="setting-row"><div><div class="setting-name">Match threshold</div><div class="setting-help">Top Matches score 70–100. Lower Matches score 0–69.</div></div><span class="pill cyan">Fixed at ' + MATCH_THRESHOLD + '</span></div>' +
+      '<div class="setting-row"><div><label for="phase2-daily-quota" class="setting-name">Daily discovery quota</label><div class="setting-help">Required number of new, verified opportunities per day.</div>' + (quotaSummary ? '<div class="setting-help">Last run · ' + esc(quotaSummary) + '</div>' : '') + '</div><select id="phase2-daily-quota" class="select" onchange="state.qualityTarget=Number(this.value);persist();toast(\'Daily quota updated\')">' + targetOptions.map(function (value) { return '<option value="' + value + '"' + (state.qualityTarget === value ? ' selected' : '') + '>' + value + ' opportunities</option>'; }).join('') + '</select></div>' +
       '<div class="setting-row"><div><div class="setting-name">Domain relevance filter</div><div class="setting-help">Unrelated opportunities are filtered before scoring.</div></div><select id="phase2-domain-relevance" class="select"><option value="enabled" ' + (state.domainRelevanceEnabled ? 'selected' : '') + '>Enabled</option><option value="disabled" ' + (!state.domainRelevanceEnabled ? 'selected' : '') + '>Disabled</option></select></div>' +
       '<div class="setting-row"><div><div class="setting-name">Opportunity types</div><div class="setting-help">Stored in backend settings and used by future discovery.</div></div><input id="phase2-opportunity-types" class="input" value="' + esc(settingsListInput(state.opportunityTypes)) + '" placeholder="internship, research"/></div></div>' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Approved sources & countries</h2><div class="panel-kicker">Backend-authoritative values; no choices are invented.</div></div><span class="pill ' + (state.approvedProfileSources.length ? 'cyan' : 'yellow') + '">' + (state.approvedProfileSources.length ? state.approvedProfileSources.length + ' source' + (state.approvedProfileSources.length === 1 ? '' : 's') : 'Sources not configured') + '</span></div>' +
@@ -559,16 +577,6 @@
     toast(email ? 'Sender identity saved. Provider connection unchanged.' : 'Sender identity cleared.');
   }
 
-  function setThresholdPhase2(value) {
-    state.threshold = Math.max(0, Math.min(100, Math.round(Number(value) || 70)));
-    (state.opportunities || []).forEach(function (opportunity) {
-      var sections = Array.isArray(opportunity.activeSections) ? opportunity.activeSections : [];
-      if (!sections.includes('new') && (sections.includes('top') || sections.includes('lower'))) applyScoreClassification(opportunity);
-    });
-    persist();
-    render();
-  }
-
   function renderPhase2Enhancements() {
     ensurePhase2State();
     var emailStatus = document.querySelector('.email-status');
@@ -634,10 +642,6 @@
   profileHTML = profileHTMLPhase2;
   settingsHTML = settingsHTMLPhase2;
   statusPill = applicationBadge;
-  setThreshold = function (value) {
-    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
-    setThresholdPhase2(value);
-  };
   classifyOpportunity = function (id) {
     if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
     classifyByScore(id);
