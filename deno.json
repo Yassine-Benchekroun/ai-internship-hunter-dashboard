@@ -1,0 +1,8 @@
+{
+  "lock": true,
+  "nodeModulesDir": "auto",
+  "imports": { "linkedom/worker": "npm:linkedom@0.18.15/worker" },
+  "tasks": {
+    "check:schedules": "deno check supabase/functions/sync-profile/index.ts supabase/functions/discover-opportunities/index.ts supabase/functions/application-monitor/index.ts"
+  }
+}

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const endpoint = await readFile(new URL('../supabase/functions/sync-profile/index.ts', import.meta.url), 'utf8');
+const shared = await readFile(new URL('../supabase/functions/_shared/schedule.ts', import.meta.url), 'utf8');
+const core = await readFile(new URL('../supabase/functions/sync-profile/core.mjs', import.meta.url), 'utf8');
 const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
 const docs = await readFile(new URL('../docs/automation-contracts.md', import.meta.url), 'utf8');
 const publicFiles = await Promise.all([
@@ -11,11 +13,13 @@ const publicFiles = await Promise.all([
   readFile(new URL('../dist/opportunity-records-bridge.js', import.meta.url), 'utf8'),
 ]);
 
-test('Profile Sync endpoint is JWT-protected and derives account scope from the caller', () => {
+test('Profile Sync validates caller JWT or one-use server ticket and derives account scope', () => {
   assert.match(config, /\[functions\.sync-profile\]/);
-  assert.match(config, /\[functions\.sync-profile\][\s\S]*?verify_jwt\s*=\s*true/);
-  assert.match(endpoint, /auth\.getUser\(token\)/);
-  assert.match(endpoint, /const userId = userData\.user\.id/);
+  assert.match(config, /\[functions\.sync-profile\][\s\S]*?verify_jwt\s*=\s*false/);
+  assert.match(endpoint, /authorizeSchedule\(request, "profile_sync"\)/);
+  assert.match(shared, /auth\.getUser\(token\)/);
+  assert.match(shared, /userId = data\.user\.id/);
+  assert.match(shared, /automation_consume_schedule_ticket/);
   assert.match(endpoint, /automation_read_settings/);
   assert.match(endpoint, /automation_sync_profile/);
   assert.match(endpoint, /is_approved_profile_source/);
@@ -23,10 +27,10 @@ test('Profile Sync endpoint is JWT-protected and derives account scope from the 
 });
 
 test('Profile Sync only fetches approved GitHub and portfolio sources and preserves missing facts', () => {
-  assert.match(endpoint, /\["github", "portfolio"\]/);
-  assert.match(endpoint, /githubOwner/);
-  assert.match(endpoint, /api\.github\.com\/users/);
-  assert.match(endpoint, /syncPortfolio/);
+  assert.match(core, /\['github', 'portfolio'\]/);
+  assert.match(core, /githubOwner/);
+  assert.match(core, /api\.github\.com\/users/);
+  assert.match(endpoint, /extractPortfolio/);
   assert.match(endpoint, /missing_facts/);
   assert.match(endpoint, /profile_fact_evidence/);
   assert.match(endpoint, /source_missing/);
@@ -34,8 +38,8 @@ test('Profile Sync only fetches approved GitHub and portfolio sources and preser
 });
 
 test('Profile Sync keeps privileged credentials server-side', () => {
-  assert.match(endpoint, /SUPABASE_SECRET_KEYS/);
-  assert.match(endpoint, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(shared, /SUPABASE_SECRET_KEYS/);
+  assert.match(shared, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(endpoint, /SUPABASE_CONFIG|sb_publishable_/i);
   assert.doesNotMatch(publicFiles.join('\n'), /service_role_key|supabase_secret_key|ingest_api_key|oauth[_-]?token/i);
 });

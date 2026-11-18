@@ -27,7 +27,8 @@ test('Application Monitor keeps owner-scoped run/event history and idempotency s
 
 test('Application Monitor authenticates the owner and uses Gmail read-only metadata only', () => {
   assert.match(config, /\[functions\.application-monitor\]/);
-  assert.match(config, /\[functions\.application-monitor\][\s\S]*?verify_jwt\s*=\s*true/);
+  assert.match(config, /\[functions\.application-monitor\][\s\S]*?verify_jwt\s*=\s*false/);
+  assert.match(endpoint, /authorizeSchedule\(request, "application_monitor"\)/);
   assert.match(endpoint, /auth\.getUser\(token\)/);
   assert.match(endpoint, /provider_oauth_get_connection/);
   assert.match(endpoint, /automation_update_application/);

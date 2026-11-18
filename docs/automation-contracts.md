@@ -1,5 +1,7 @@
 # Secure automation contracts
 
+The original contracts below remain the persistence foundation. The newer [independent schedules](recurring-schedules.md) add owner-scoped run leases, single-use dispatch tickets, immutable artifact preparation, conservative mailbox correlation, and disabled recurrence gates. For the three schedule workers, authentication now occurs in the shared handler (verified Auth JWT or backend ticket); deployment and validation are pending as documented there.
+
 Phase 3 prepares backend contracts for three future agents. The contracts are
 server-side only; no schedule is created by this repository and no contract
 sends email.

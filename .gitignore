@@ -3,4 +3,6 @@ data/dashboard-data.json
 .env.*
 !.env.example
 node_modules/
+supabase/.temp/
+.local-validation/
 

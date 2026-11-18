@@ -590,6 +590,36 @@
       opportunityIngestion: ingestionRunHealth((results[0].data || [])[0] || null),
       applicationMonitor: monitorRunHealth((results[1].data || [])[0] || null)
     };
+    // New independent worker history includes blocked/failed discovery runs
+    // even when no opportunity was ingested. Older deployments use the above.
+    var scheduleTypes = ['profile_sync', 'opportunity_discovery', 'application_monitor'];
+    var scheduleKeys = ['profileSync', 'opportunityIngestion', 'applicationMonitor'];
+    var schedules = await Promise.all(scheduleTypes.map(function (type) {
+      return bridgeClient.from('schedule_runs')
+        .select('status,dry_run,started_at,finished_at,processed_records,inserted_count,updated_count,duplicate_count,warning_count,counts,errors,last_successful_run_at')
+        .eq('user_id', bridgeUser.id).eq('schedule_type', type)
+        .order('started_at', { ascending: false }).limit(1);
+    }));
+    schedules.forEach(function (result, index) {
+      if (result.error) {
+        if (['42P01', 'PGRST205'].indexOf(result.error.code) >= 0) return;
+        throw result.error;
+      }
+      var run = (result.data || [])[0];
+      if (!run) return;
+      function bounded(value) { return Math.max(0, Math.min(99999999, Number(value) || 0)); }
+      var counts = run.counts || {};
+      state.runHealth[scheduleKeys[index]] = {
+        status: run.status, dryRun: run.dry_run === true, startedAt: run.started_at,
+        completedAt: run.finished_at, lastSuccessfulAt: run.last_successful_run_at,
+        recordsDiscovered: bounded(run.processed_records), recordsInserted: bounded(run.inserted_count),
+        recordsUpdated: bounded(run.updated_count), duplicatesIgnored: bounded(run.duplicate_count),
+        opportunitiesReceived: bounded(counts.discovered), opportunitiesInserted: bounded(run.inserted_count),
+        opportunitiesUpdated: bounded(run.updated_count), messagesScanned: bounded(counts.messages_scanned),
+        applicationsConsidered: bounded(run.processed_records), applicationsUpdated: bounded(counts.statuses_updated),
+        followUpDraftsCreated: bounded(counts.drafts_created), errorCount: runErrorCount(run.errors)
+      };
+    });
   }
 
   async function loadUserSettings() {

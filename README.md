@@ -2,6 +2,8 @@
 
 Verified-first AI internship and research opportunity dashboard with opportunity history, application tracking, email draft management, Supabase persistence, and GitHub Pages deployment.
 
+The three independent backend workers, configuration, safety gates, current validation results, and deployment instructions are documented in [docs/recurring-schedules.md](docs/recurring-schedules.md). Recurrence remains disabled pending all three live validations. Gmail connection is deferred at the owner's request.
+
 ## Local preview
 
 Run `node server.mjs` and open http://127.0.0.1:4173/.
@@ -44,7 +46,7 @@ These migrations create the normalized `opportunity_records` table with owner-on
 
 Phase 3 adds service-role-only RPC contracts for settings, Verified Profile Sync, opportunity ingestion, and Application Monitoring. The existing `ingest-opportunities` Edge Function source is tracked under `supabase/functions/ingest-opportunities/`; its platform JWT verification and private API-key check keep privileged writes server-side. No schedule or automatic email sender is created.
 
-The Edge Function JWT requirement is pinned in `supabase/config.toml` and must remain enabled in every deployment.
+Authentication configuration is pinned in `supabase/config.toml`. The ingestion endpoint retains gateway JWT verification. The three schedule workers validate Auth JWTs or single-use backend tickets inside the handler; see the recurring-schedule contract before deployment.
 
 The existing dashboard stores its UI state in `dashboard_state`. The normalized opportunity table is deliberately separate so scheduled writes cannot overwrite the whole dashboard JSON document. Backend-driven matching settings are mirrored to `user_settings`, and the dashboard's data-loading layer is connected to `opportunity_records`.
 

@@ -3,7 +3,8 @@
 verify_jwt = true
 
 [functions.sync-profile]
-verify_jwt = true
+# Shared handler verifies Auth JWTs or single-use server-side schedule tickets.
+verify_jwt = false
 
 # The OAuth callback is redirected from Google without a Supabase JWT. The
 # function validates Supabase JWTs itself for user actions and consumes a
@@ -11,7 +12,9 @@ verify_jwt = true
 [functions.provider-oauth]
 verify_jwt = false
 
-# The Application Monitor uses the platform JWT boundary and performs a
-# second signed-in-user check before reading owner-scoped application data.
+# Each schedule performs its own authenticated-user / one-use ticket check.
 [functions.application-monitor]
-verify_jwt = true
+verify_jwt = false
+
+[functions.discover-opportunities]
+verify_jwt = false

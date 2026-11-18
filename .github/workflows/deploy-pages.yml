@@ -29,8 +29,12 @@ jobs:
           node --check server.mjs
           node --check dist/opportunity-records-bridge.js
           node --check dist/phase2-ui.js
+      - name: Install pinned test dependencies
+        run: npm ci --ignore-scripts
       - name: Run contract and UI tests
         run: node --test tests/*.test.mjs
+      - name: Run PostgreSQL schedule contracts
+        run: npm run test:sql
       - name: Scan published assets for privileged credentials
         shell: bash
         run: |

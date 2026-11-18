@@ -192,7 +192,7 @@
   }
 
   function runHealthStatus(run) {
-    return run ? String(run.status || 'Recorded') : 'Not recorded';
+    return run ? String(run.status || 'Recorded') + (run.dryRun ? ' · dry run' : '') : 'Not recorded';
   }
 
   function runHealthStatusClass(run) {
