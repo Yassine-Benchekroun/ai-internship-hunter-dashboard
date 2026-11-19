@@ -644,6 +644,10 @@
         dailyDiscovered: counts.daily_discovered == null ? null : bounded(counts.daily_discovered),
         dailyShortfall: counts.daily_shortfall == null ? null : bounded(counts.daily_shortfall),
         dryRunNewCandidates: counts.dry_run_new_candidates == null ? null : bounded(counts.dry_run_new_candidates),
+        searchRequestsReserved: counts.search_requests_reserved == null ? null : bounded(counts.search_requests_reserved),
+        searchRequestsMonthToDate: counts.search_requests_month_to_date == null ? null : bounded(counts.search_requests_month_to_date),
+        searchRequestsRemaining: counts.search_requests_remaining == null ? null : bounded(counts.search_requests_remaining),
+        searchRequestLimit: counts.search_request_limit == null ? null : bounded(counts.search_request_limit),
         missingSearchProvider: Array.isArray(run.errors) && run.errors.includes('search_provider_not_configured'),
         applicationsConsidered: bounded(run.processed_records), applicationsUpdated: bounded(counts.statuses_updated),
         followUpDraftsCreated: bounded(counts.drafts_created), errorCount: runErrorCount(run.errors)

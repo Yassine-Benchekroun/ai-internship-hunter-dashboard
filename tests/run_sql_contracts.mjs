@@ -42,6 +42,8 @@ try {
   for (const item of result) if (item.rows?.length) console.log(item.rows);
   await db.exec(await readFile('supabase/tests/discovery_quota.sql', 'utf8'));
   console.log('Fixed match cutoff and daily discovery quota passed.');
+  await db.exec(await readFile('supabase/tests/search_request_budget.sql', 'utf8'));
+  console.log('Monthly discovery search request cap and RPC permissions passed.');
   await db.exec('begin; set local role service_role;');
   const liveRun = (await db.query(`select public.automation_begin_schedule('3a419f7d-36e0-43d5-aa39-156b3177b84a','profile_sync',gen_random_uuid(),true,'[]') as value`)).rows[0].value;
   await db.query('select public.automation_finish_schedule($1,$2,$3,$4)', [liveRun.run_id, 'blocked', {}, ['source_unavailable']]);

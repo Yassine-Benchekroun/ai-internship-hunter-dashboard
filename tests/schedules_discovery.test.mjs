@@ -139,6 +139,20 @@ test('expired search budget issues no network requests and preserves approved so
   assert.deepEqual(errors,['invalid_search_source','discovery_time_budget_reached']);
 });
 
+test('monthly search request cap is checked before the provider call', async () => {
+  const errors=[]; let reservations=0; let calls=0;
+  const sources=[];
+  for await (const batch of boundaries.candidateSources({search_queries:['query']},errors,{
+    deadline:Date.now()+10000, searchKey:'test-key',
+    reserveSearch:async()=>{ reservations++; return {allowed:false,request_limit:1000,requests_used:1000,requests_remaining:0}; },
+    fetcher:async()=>{ calls++; throw new Error('must not fetch'); },
+  })) sources.push(...batch);
+  assert.equal(reservations,1);
+  assert.equal(calls,0);
+  assert.deepEqual(sources,[]);
+  assert.deepEqual(errors,['search_request_budget_exhausted']);
+});
+
 test('outer fetch deadline also bounds a stalled resolver before HTTP begins', async () => {
   let suppliedTimeout;
   const pending=boundaries.timedFetchText(source,{},Date.now()+20,async(_url,_headers,options)=>{

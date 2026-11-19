@@ -222,6 +222,9 @@
     if (run.dryRun && run.dryRunNewCandidates != null) {
       progress += ' · dry run found ' + run.dryRunNewCandidates + ' unsaved candidates';
     }
+    if (run.searchRequestLimit != null && run.searchRequestsMonthToDate != null && run.searchRequestsRemaining != null) {
+      progress += ' · search API ' + run.searchRequestsMonthToDate + '/' + run.searchRequestLimit + ' used, ' + run.searchRequestsRemaining + ' left';
+    }
     if (run.missingSearchProvider) progress += ' · broad search provider is unconfigured';
     return progress;
   }

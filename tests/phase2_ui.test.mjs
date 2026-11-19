@@ -78,12 +78,13 @@ test('score classification uses a fixed 70 boundary despite saved legacy values'
 test('settings show a read-only cutoff and a numeric quota with the recorded shortfall', () => {
   const { settingsHTML, state } = loadPhase2();
   state.qualityTarget = 20;
-  state.runHealth.opportunityIngestion = { dailyTarget: 30, dailyDiscovered: 24, dailyShortfall: 6 };
+  state.runHealth.opportunityIngestion = { dailyTarget: 30, dailyDiscovered: 24, dailyShortfall: 6, searchRequestLimit: 1000, searchRequestsMonthToDate: 42, searchRequestsRemaining: 958 };
   const html = settingsHTML();
   assert.match(html, /Fixed at 70/);
   assert.doesNotMatch(html, /type="range"|setThreshold/);
   assert.match(html, /<option value="20" selected>20 opportunities<\/option>/);
   assert.match(html, /24 of 30 new opportunities · 6 short of quota/);
+  assert.match(html, /search API 42\/1000 used, 958 left/);
 });
 
 test('changing the daily quota saves only the quota field', async () => {

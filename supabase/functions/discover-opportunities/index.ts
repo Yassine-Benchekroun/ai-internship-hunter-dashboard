@@ -40,8 +40,9 @@ const MAX_SEARCH_PAGES = 180;
 const SOURCE_BATCH_SIZE = 6;
 
 export async function* candidateSources(config: any, errors: string[],
-  options: { deadline: number; searchKey?: string; retryUrls?: string[]; fetcher?: typeof fetchText; now?: () => number }) {
-  const { deadline, searchKey: key, retryUrls = [], fetcher = fetchText, now = Date.now } = options;
+  options: { deadline: number; searchKey?: string; retryUrls?: string[]; fetcher?: typeof fetchText; now?: () => number;
+    reserveSearch?: () => Promise<{ allowed: boolean }> }) {
+  const { deadline, searchKey: key, retryUrls = [], fetcher = fetchText, now = Date.now, reserveSearch } = options;
   const visited = new Set<string>();
   const direct: CandidateSource[] = [];
   for (const entry of config.approved_search_sources ?? []) {
@@ -77,6 +78,15 @@ export async function* candidateSources(config: any, errors: string[],
   for (let offset = 0; offset < 3 && activeQueries.length; offset++) {
     for (const query of [...activeQueries]) {
       if (now() >= deadline) { errors.push("discovery_time_budget_reached"); return; }
+      if (reserveSearch) {
+        try {
+          const budget = await reserveSearch();
+          if (!budget?.allowed) { errors.push("search_request_budget_exhausted"); return; }
+        } catch {
+          errors.push("search_request_budget_unavailable");
+          return;
+        }
+      }
       const batch: CandidateSource[] = [];
       try {
         const url = new URL("https://api.search.brave.com/res/v1/web/search");
@@ -140,6 +150,17 @@ async function dailyCount(admin: any, userId: string, startedAt: string, deadlin
   return data;
 }
 
+async function reserveDiscoverySearchRequest(admin: any, userId: string, deadline: number) {
+  const { data, error } = await admin.rpc("automation_reserve_discovery_search_request", {
+    p_user_id: userId,
+    p_requested_at: new Date().toISOString(),
+  }).abortSignal(AbortSignal.timeout(requestBudget(deadline)));
+  if (error || !data || typeof data !== "object" || typeof data.allowed !== "boolean") {
+    throw new ScheduleError("search_request_budget_unavailable", 503);
+  }
+  return data as { allowed: boolean; request_limit: number; requests_used: number; requests_remaining: number };
+}
+
 async function retryPreparationSources(admin: any, userId: string, requestId: unknown, attempt: number, deadline: number) {
   if (attempt < 2 || typeof requestId !== "string") return [];
   const { data: runs, error } = await admin.from("schedule_runs").select("run_id,errors")
@@ -184,7 +205,8 @@ export async function handleDiscovery(request: Request): Promise<Response> {
   if (request.method !== "POST") return json({ error: "Only POST is supported" }, 405);
   let admin: any; let run: any;
   const errors: string[] = [];
-  const counts: Record<string, number> = { processed_records: 0, discovered: 0, valid_opportunities: 0, rejected_domain: 0, rejected_other: 0, duplicate_count: 0, inserted_count: 0, updated_count: 0, top_matches: 0, lower_matches: 0, cvs_generated: 0, drafts_generated: 0, warning_count: 0 };
+  const counts: Record<string, number> = { processed_records: 0, discovered: 0, valid_opportunities: 0, rejected_domain: 0, rejected_other: 0, duplicate_count: 0, inserted_count: 0, updated_count: 0, top_matches: 0, lower_matches: 0, cvs_generated: 0, drafts_generated: 0, warning_count: 0,
+    search_requests_reserved: 0, search_requests_month_to_date: 0, search_requests_remaining: 1000, search_request_limit: 1000 };
   try {
     const context = await authorizeSchedule(request, "opportunity_discovery");
     admin = context.admin;
@@ -231,10 +253,19 @@ export async function handleDiscovery(request: Request): Promise<Response> {
     // Saving valid opportunities is independent from material availability.
     if (!master?.content?.trim()) errors.push("master_cv_content_unavailable");
 
+    const reserveSearch = Deno.env.get("BRAVE_SEARCH_API_KEY") ? async () => {
+      const budget = await reserveDiscoverySearchRequest(admin, userId, workDeadline);
+      counts.search_requests_reserved++;
+      counts.search_requests_month_to_date = budget.requests_used;
+      counts.search_requests_remaining = budget.requests_remaining;
+      counts.search_request_limit = budget.request_limit;
+      return budget;
+    } : undefined;
     const sources = candidateSources(config, errors, {
       deadline: workDeadline,
       searchKey: Deno.env.get("BRAVE_SEARCH_API_KEY"),
       retryUrls,
+      reserveSearch,
     });
     const priorPostings = dryRunHistory(history);
     const seen = new Set<string>();
@@ -323,7 +354,7 @@ export async function handleDiscovery(request: Request): Promise<Response> {
     const unmetQuota = (dryRun ? projectedCount : counts.daily_discovered) < target;
     if (unmetQuota) errors.unshift("daily_target_not_reached");
     counts.warning_count = errors.length;
-    const sourceConfigurationMissing = errors.includes("search_provider_not_configured") || errors.includes("approved_search_configuration_unavailable");
+    const sourceConfigurationMissing = errors.includes("search_provider_not_configured") || errors.includes("approved_search_configuration_unavailable") || errors.includes("search_request_budget_exhausted") || errors.includes("search_request_budget_unavailable");
     const status = unmetQuota ? (!counts.processed_records && sourceConfigurationMissing ? "blocked" : "failed")
       : errors.length ? (counts.processed_records ? "partial" : "failed") : "completed";
     await finishRun(admin, run, status, counts, [...new Set(errors)]);
