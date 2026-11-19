@@ -206,7 +206,7 @@ export async function handleDiscovery(request: Request): Promise<Response> {
   let admin: any; let run: any;
   const errors: string[] = [];
   const counts: Record<string, number> = { processed_records: 0, discovered: 0, valid_opportunities: 0, rejected_domain: 0, rejected_other: 0, duplicate_count: 0, inserted_count: 0, updated_count: 0, top_matches: 0, lower_matches: 0, cvs_generated: 0, drafts_generated: 0, warning_count: 0,
-    search_requests_reserved: 0, search_requests_month_to_date: 0, search_requests_remaining: 1000, search_request_limit: 1000 };
+    search_requests_reserved: 0, search_request_limit: 1000 };
   try {
     const context = await authorizeSchedule(request, "opportunity_discovery");
     admin = context.admin;
