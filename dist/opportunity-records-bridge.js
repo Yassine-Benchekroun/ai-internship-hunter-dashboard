@@ -602,6 +602,7 @@
     var results = await Promise.all([
       bridgeClient.from('opportunity_ingestion_events')
         .select('status,received_at,created_at,opportunities_received,opportunities_inserted,opportunities_updated,duplicates_ignored,errors')
+        .or('source_name.is.null,source_name.neq.opportunity_link_import')
         .order('created_at', { ascending: false }).limit(1),
       bridgeClient.from('application_monitor_runs')
         .select('status,dry_run,started_at,completed_at,messages_scanned,applications_considered,applications_updated,follow_up_drafts_created,duplicates_ignored,errors')
@@ -619,10 +620,11 @@
     var scheduleTypes = ['profile_sync', 'opportunity_discovery', 'application_monitor'];
     var scheduleKeys = ['profileSync', 'opportunityIngestion', 'applicationMonitor'];
     var schedules = await Promise.all(scheduleTypes.map(function (type) {
-      return bridgeClient.from('schedule_runs')
+      var query = bridgeClient.from('schedule_runs')
         .select('status,dry_run,started_at,finished_at,processed_records,inserted_count,updated_count,duplicate_count,warning_count,counts,errors,last_successful_run_at')
-        .eq('user_id', bridgeUser.id).eq('schedule_type', type)
-        .order('started_at', { ascending: false }).limit(1);
+        .eq('user_id', bridgeUser.id).eq('schedule_type', type);
+      if (type === 'opportunity_discovery') query = query.not('sources', 'cs', '[{"kind":"link_import"}]');
+      return query.order('started_at', { ascending: false }).limit(1);
     }));
     schedules.forEach(function (result, index) {
       if (result.error) {
@@ -738,6 +740,84 @@
 
   window.AIH_providerOAuth = providerOAuth;
 
+  async function requestOpportunityDiscovery(body) {
+    if (window.__AIH_SKIP_CLOUD_SYNC || window.__AIH_DEMO_PREVIEW || !bridgeClient || !bridgeReady ||
+        !bridgeUser || !window.AIH_isOwnerSession || !window.AIH_isOwnerSession(bridgeUser)) {
+      throw new Error('Sign in and wait for the dashboard to finish loading.');
+    }
+    if (!window.crypto || typeof window.crypto.randomUUID !== 'function') {
+      throw new Error('Open the dashboard over HTTPS to run discovery.');
+    }
+    var ownerId = bridgeUser.id;
+    await Promise.all([syncQueue, settingsQueue]);
+    var sessionResult = await bridgeClient.auth.getSession();
+    var session = sessionResult.data && sessionResult.data.session;
+    if (session?.user?.id !== ownerId || !window.AIH_isOwnerSession(session.user)) {
+      throw new Error('Sign in again to run discovery.');
+    }
+    var result = await bridgeClient.functions.invoke('discover-opportunities', {
+      body: { ...body, request_id: window.crypto.randomUUID() }
+    });
+    var importMode = Array.isArray(body.import_urls);
+    var report = result.data;
+    if (result.error && typeof result.error.context?.json === 'function') {
+      try { report = await result.error.context.json(); } catch { /* No structured response. */ }
+    }
+    if (!report || !['completed', 'partial', 'failed', 'blocked', 'running'].includes(report.status)) {
+      if (result.error?.context?.status === 401 || result.error?.context?.status === 403) {
+        throw new Error('Sign in again to run discovery.');
+      }
+      if (report?.error === 'invalid_import_urls') {
+        throw new Error('Enter up to 30 public HTTPS posting links.');
+      }
+      if (report?.error === 'request_too_large') {
+        throw new Error('This batch is too large. Split it into two imports.');
+      }
+      throw new Error(importMode
+        ? 'The dashboard could not reach the link importer. Check Opportunity History before retrying.'
+        : 'The dashboard could not confirm this run. Reload the dashboard and check Run health before retrying.');
+    }
+    if (body.dry_run || (importMode && !((report.counts?.inserted_count ?? 0) + (report.counts?.updated_count ?? 0)))) return report;
+
+    try {
+      // Keep this refresh read-only and let any already-queued edits finish first.
+      await syncQueue;
+      if (bridgeUser?.id !== ownerId || !window.AIH_isOwnerSession(bridgeUser)) {
+        return { ...report, refresh_failed: true };
+      }
+      var refreshes = [refreshDiscoveryOpportunities(ownerId)];
+      if (!importMode) refreshes.push(loadRunHealth());
+      var refreshed = await Promise.allSettled(refreshes);
+      if (bridgeUser?.id !== ownerId || !window.AIH_isOwnerSession(bridgeUser)) {
+        return { ...report, refresh_failed: true };
+      }
+      render();
+      if (refreshed.some(function (entry) { return entry.status === 'rejected'; })) {
+        return { ...report, refresh_failed: true };
+      }
+    } catch {
+      return { ...report, refresh_failed: true };
+    }
+    return report;
+  }
+
+  async function refreshDiscoveryOpportunities(ownerId) {
+    var records = await bridgeClient.from('opportunity_records')
+      .select('*').eq('user_id', ownerId).order('updated_at', { ascending: false });
+    if (records.error || bridgeUser?.id !== ownerId || !window.AIH_isOwnerSession(bridgeUser)) {
+      throw new Error('Opportunity History could not be refreshed.');
+    }
+    applyOpportunityRows(records.data || []);
+    await loadNormalizedArtifacts();
+  }
+
+  window.AIH_importOpportunityLinks = function (urls, dryRun) {
+    return requestOpportunityDiscovery({ import_urls: urls, dry_run: dryRun === true });
+  };
+  window.AIH_runOpportunityDiscovery = function () {
+    return requestOpportunityDiscovery({ dry_run: false });
+  };
+
   async function loadNormalizedApplications() {
     var pendingDeletes = Array.isArray(state.cloudApplicationDeleteQueue)
       ? state.cloudApplicationDeleteQueue.filter(isUuid)
@@ -802,6 +882,12 @@
     return true;
   }
 
+  function applyOpportunityRows(rows) {
+    knownOpportunityIds = new Set(rows.map(function (row) { return row.id; }));
+    var demoRows = (state.opportunities || []).filter(function (opportunity) { return opportunity.demo; });
+    state.opportunities = rows.map(rowToOpportunity).concat(demoRows);
+  }
+
   async function loadOpportunityRecords() {
     if (!bridgeClient) return;
     var sessionResult = await bridgeClient.auth.getSession();
@@ -844,9 +930,7 @@
         await saveDashboardPayload();
       }
     }
-    knownOpportunityIds = new Set(rows.map(function (row) { return row.id; }));
-    var demoRows = (state.opportunities || []).filter(function (opportunity) { return opportunity.demo; });
-    state.opportunities = rows.map(rowToOpportunity).concat(demoRows);
+    applyOpportunityRows(rows);
     await loadNormalizedApplications();
     await loadNormalizedArtifacts();
     bridgeReady = true;

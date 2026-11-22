@@ -1,6 +1,7 @@
 import { authorizeSchedule, beginRun, finishRun, ScheduleError, errorResponse, corsHeaders } from "../_shared/schedule.ts";
 import { fetchText, normalizedSources, sourceKey } from "../sync-profile/core.mjs";
 import { canonicalUrl, jsonLdJobs, verifyJob, scoreOpportunity, prepareMaterials, contentKey } from "./core.mjs";
+import { boardFeedKind, boardFeedJobs, greenhousePostingEndpoint, greenhousePostingJob } from "./board-feeds.mjs";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: corsHeaders });
 export function requestBudget(deadline: number, maxMs = 10000, now = Date.now): number {
@@ -11,12 +12,12 @@ export function requestBudget(deadline: number, maxMs = 10000, now = Date.now): 
 // The outer timer also bounds DNS resolution, which occurs before fetchText's
 // HTTP timeout. Every external read shares the run's work deadline.
 export async function timedFetchText(url: string, headers: Record<string, string>, deadline: number,
-  fetcher: typeof fetchText = fetchText, now = Date.now) {
+  fetcher: typeof fetchText = fetchText, now = Date.now, maxBytes?: number) {
   const timeoutMs = requestBudget(deadline, 10000, now);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      fetcher(url, headers, { timeoutMs }),
+      fetcher(url, headers, { timeoutMs, maxBytes }),
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => reject(new ScheduleError("discovery_source_timeout", 408)), timeoutMs);
       }),
@@ -35,9 +36,44 @@ async function rows(admin: any, table: string, columns: string, userId: string, 
   }
   throw new ScheduleError("discovery_input_limit_reached");
 }
-type CandidateSource = { url: string; kind: string };
+type CandidateSource = { url: string; kind: string; organization?: string; postingHost?: string; postingEndpoint?: string };
 const MAX_SEARCH_PAGES = 180;
 const SOURCE_BATCH_SIZE = 6;
+const IMPORT_SOURCE = "opportunity_link_import";
+const IMPORT_HOSTS = new Set([
+  "boards.greenhouse.io", "job-boards.greenhouse.io", "job-boards.eu.greenhouse.io",
+  "jobs.lever.co", "jobs.eu.lever.co", "jobs.ashbyhq.com", "jobs.smartrecruiters.com",
+  "apply.workable.com", "careers.withwaymo.com",
+]);
+
+function canonicalImportUrl(value: string): string | null {
+  const canonical = canonicalUrl(value.trim());
+  if (!canonical) return null;
+  const url = new URL(canonical);
+  if (url.hostname === "boards.greenhouse.io" && /^\/[^/]+\/jobs\/\d+$/.test(url.pathname)) {
+    url.hostname = "job-boards.greenhouse.io";
+  }
+  const greenhouseId = url.searchParams.get("gh_jid");
+  url.search = "";
+  if (greenhouseId && /^\d{1,20}$/.test(greenhouseId)) {
+    url.pathname = url.pathname.replace(/\/$/, "");
+    url.searchParams.set("gh_jid", greenhouseId);
+  }
+  return canonicalUrl(url.href);
+}
+
+function importUrls(input: unknown): string[] {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 30) {
+    throw new ScheduleError("invalid_import_urls", 400);
+  }
+  const urls = input.map((value) => {
+    if (typeof value !== "string" || value.length > 450) throw new ScheduleError("invalid_import_urls", 400);
+    const canonical = canonicalImportUrl(value);
+    if (!canonical) throw new ScheduleError("invalid_import_urls", 400);
+    return canonical;
+  });
+  return [...new Set(urls)];
+}
 
 export async function* candidateSources(config: any, errors: string[],
   options: { deadline: number; searchKey?: string; retryUrls?: string[]; fetcher?: typeof fetchText; now?: () => number;
@@ -48,11 +84,14 @@ export async function* candidateSources(config: any, errors: string[],
   for (const entry of config.approved_search_sources ?? []) {
     const url = canonicalUrl(entry?.source_url ?? entry?.url);
     const kind = entry?.kind ?? "jsonld";
-    if (!url || !["jsonld", "jobposting_json"].includes(kind)) {
+    const organization = typeof entry?.organization === "string" ? entry.organization.trim().slice(0, 250) : "";
+    const postingHost = typeof entry?.posting_host === "string" ? entry.posting_host : undefined;
+    const board = url && organization && boardFeedKind(url) === kind;
+    if (!url || (!board && !["jsonld", "jobposting_json"].includes(kind))) {
       errors.push("invalid_search_source");
     } else if (!visited.has(url)) {
       visited.add(url);
-      direct.push({ url, kind });
+      direct.push(board ? { url, kind, organization, postingHost } : { url, kind });
     }
   }
   for (const url of retryUrls) if (!visited.has(url)) {
@@ -67,7 +106,7 @@ export async function* candidateSources(config: any, errors: string[],
     return;
   }
   if (!key) {
-    errors.push("search_provider_not_configured");
+    errors.push(direct.some((item) => item.organization) ? "configured_public_sources_exhausted" : "search_provider_not_configured");
     return;
   }
 
@@ -195,6 +234,15 @@ export function verifyCandidate(job: any, jobUrl: string, settings: any, errors:
 }
 
 async function readJobs(source: CandidateSource, deadline: number) {
+  if (source.postingEndpoint) {
+    const document = await timedFetchText(source.postingEndpoint, { Accept: "application/json" }, deadline);
+    const job = greenhousePostingJob(source.url, source.postingEndpoint, JSON.parse(document));
+    return job ? [job] : [];
+  }
+  if (source.organization && boardFeedKind(source.url) === source.kind) {
+    const document = await timedFetchText(source.url, { Accept: "application/json" }, deadline, fetchText, Date.now, 6_000_000);
+    return boardFeedJobs(source.url, JSON.parse(document), source.organization, source.postingHost);
+  }
   const document = await timedFetchText(source.url, { Accept: "text/html, application/json" }, deadline);
   const parsed = source.kind === "jobposting_json" ? JSON.parse(document) : jsonLdJobs(document);
   return Array.isArray(parsed) ? parsed : [parsed];
@@ -211,7 +259,11 @@ export async function handleDiscovery(request: Request): Promise<Response> {
     const context = await authorizeSchedule(request, "opportunity_discovery");
     admin = context.admin;
     const { userId, body } = context;
-    run = await beginRun(admin, userId, "opportunity_discovery", body);
+    const urls = "import_urls" in body ? importUrls(body.import_urls) : null;
+    const importMode = urls !== null;
+    const sourceName = importMode ? IMPORT_SOURCE : "opportunity_discovery";
+    run = await beginRun(admin, userId, "opportunity_discovery", body,
+      urls ? [{ kind: "link_import", submitted_count: urls.length }] : []);
     if (!run.acquired) return json({ run_id: run.run_id, status: run.status, replay: true });
     const dryRun = body.dry_run === true;
     // Includes configuration, search, verification and persistence. Stop new
@@ -225,10 +277,12 @@ export async function handleDiscovery(request: Request): Promise<Response> {
     if (settingsResult.error || configResult.error) throw new ScheduleError("discovery_settings_unavailable");
     const settings = settingsResult.data; const config = configResult.data;
     const target = settings.daily_opportunity_target;
-    if (!Number.isSafeInteger(target) || target < 1 || target > 100) throw new ScheduleError("invalid_daily_target", 409);
-    counts.daily_target = target;
-    counts.daily_discovered = await dailyCount(admin, userId, run.started_at, workDeadline);
-    counts.daily_shortfall = Math.max(0, target - counts.daily_discovered);
+    if (!importMode) {
+      if (!Number.isSafeInteger(target) || target < 1 || target > 100) throw new ScheduleError("invalid_daily_target", 409);
+      counts.daily_target = target;
+      counts.daily_discovered = await dailyCount(admin, userId, run.started_at, workDeadline);
+      counts.daily_shortfall = Math.max(0, target - counts.daily_discovered);
+    }
     if (dryRun) counts.dry_run_new_candidates = 0;
     if (!settings.target_countries?.length || !settings.opportunity_types?.length) throw new ScheduleError("search_targets_unavailable", 409);
     const [profile, evidence, history, masterResult, profileRunResult, activeProfileResult, retryUrls] = await Promise.all([
@@ -238,7 +292,7 @@ export async function handleDiscovery(request: Request): Promise<Response> {
       admin.from("master_cv_versions").select("id,revision,content").eq("user_id", userId).eq("is_current", true).maybeSingle().abortSignal(AbortSignal.timeout(requestBudget(workDeadline))),
       admin.from("schedule_runs").select("run_id,finished_at,status").eq("user_id", userId).eq("schedule_type", "profile_sync").eq("dry_run", false).in("status", ["completed", "partial"]).gt("processed_records", 0).order("finished_at", { ascending: false }).limit(1).maybeSingle().abortSignal(AbortSignal.timeout(requestBudget(workDeadline))),
       admin.from("schedule_runs").select("run_id").eq("user_id", userId).eq("schedule_type", "profile_sync").eq("status", "running").gt("lease_expires_at", new Date().toISOString()).limit(1).maybeSingle().abortSignal(AbortSignal.timeout(requestBudget(workDeadline))),
-      dryRun ? [] : retryPreparationSources(admin, userId, body.request_id, run.attempt, workDeadline),
+      dryRun || importMode ? [] : retryPreparationSources(admin, userId, body.request_id, run.attempt, workDeadline),
     ]);
     if (masterResult.error || profileRunResult.error || activeProfileResult.error) throw new ScheduleError("discovery_input_read_failed");
     if (activeProfileResult.data) throw new ScheduleError("profile_sync_in_progress", 409);
@@ -255,13 +309,28 @@ export async function handleDiscovery(request: Request): Promise<Response> {
 
     const reserveSearch = Deno.env.get("BRAVE_SEARCH_API_KEY") ? async () => {
       const budget = await reserveDiscoverySearchRequest(admin, userId, workDeadline);
-      counts.search_requests_reserved++;
+      if (budget.allowed) counts.search_requests_reserved++;
       counts.search_requests_month_to_date = budget.requests_used;
       counts.search_requests_remaining = budget.requests_remaining;
       counts.search_request_limit = budget.request_limit;
       return budget;
     } : undefined;
-    const sources = candidateSources(config, errors, {
+    const allowedImportHosts = new Set(IMPORT_HOSTS);
+    for (const entry of config.approved_search_sources ?? []) {
+      const approved = canonicalUrl(entry?.source_url ?? entry?.url);
+      if (approved) allowedImportHosts.add(new URL(approved).hostname);
+      if (approved && boardFeedKind(approved) === "greenhouse_jobs" && typeof entry.posting_host === "string") {
+        allowedImportHosts.add(entry.posting_host.toLowerCase());
+      }
+    }
+    const importedSources: CandidateSource[] = [];
+    for (const url of urls ?? []) {
+      if (allowedImportHosts.has(new URL(url).hostname)) {
+        const postingEndpoint = greenhousePostingEndpoint(url, config.approved_search_sources) ?? undefined;
+        importedSources.push({ url, kind: "jsonld", postingEndpoint });
+      } else { counts.rejected_other++; errors.push("unsupported_import_source"); }
+    }
+    const sources = importMode ? [importedSources] : candidateSources(config, errors, {
       deadline: workDeadline,
       searchKey: Deno.env.get("BRAVE_SEARCH_API_KEY"),
       retryUrls,
@@ -269,17 +338,28 @@ export async function handleDiscovery(request: Request): Promise<Response> {
     });
     const priorPostings = dryRunHistory(history);
     const seen = new Set<string>();
-    let projectedCount = counts.daily_discovered;
+    let projectedCount = counts.daily_discovered ?? 0;
     async function saveVerified(source: CandidateSource, jobs: any[]) {
+      if (importMode && jobs.length !== 1) {
+        counts.rejected_other++;
+        errors.push("opportunity_posting_not_found");
+        return;
+      }
       for (const job of jobs) {
         if (Date.now() >= workDeadline) { errors.push("discovery_time_budget_reached"); return; }
         if (counts.discovered >= 600) { errors.push("discovery_record_budget_reached"); return; }
         counts.discovered++;
         if (!job || typeof job !== "object") { counts.rejected_other++; continue; }
-        const jobUrl = canonicalUrl(job.url) ?? source.url;
+        const declaredUrl = canonicalUrl(job.url);
+        if (importMode && declaredUrl && canonicalImportUrl(declaredUrl) !== source.url) {
+          counts.rejected_other++;
+          errors.push("opportunity_source_posting_mismatch");
+          continue;
+        }
+        const jobUrl = importMode ? source.url : declaredUrl ?? source.url;
         // A feed may reference individual source URLs, but cannot silently send
         // the verifier to another host; that destination must be separately fetched.
-        if (jobUrl !== source.url && new URL(jobUrl).hostname !== new URL(source.url).hostname) {
+        if (jobUrl !== source.url && !source.organization && new URL(jobUrl).hostname !== new URL(source.url).hostname) {
           errors.push("cross_host_job_url_requires_verification"); continue;
         }
         const result = verifyCandidate(job, jobUrl, settings, errors);
@@ -290,7 +370,7 @@ export async function handleDiscovery(request: Request): Promise<Response> {
         if (seen.has(identity)) { counts.duplicate_count++; continue; }
         seen.add(identity);
         const score = scoreOpportunity(opportunity, facts);
-        const record = { ...opportunity, ...score, source_is_single_posting: jobs.length === 1 };
+        const record = { ...opportunity, ...score, source_is_single_posting: Boolean(importMode || source.organization || jobs.length === 1) };
         counts.valid_opportunities++;
         counts[score.classification === "top" ? "top_matches" : "lower_matches"]++;
         if (dryRun) {
@@ -307,7 +387,7 @@ export async function handleDiscovery(request: Request): Promise<Response> {
           // Commit history before preparing artifacts; preparation failure cannot
           // roll back a verified opportunity or destroy older versions.
           const { data, error } = await admin.rpc("automation_ingest_opportunities", { p_payload: {
-            user_id: userId, request_id: run.run_id, source_name: "opportunity_discovery", opportunities: [record],
+            user_id: userId, request_id: run.run_id, source_name: sourceName, opportunities: [record],
           } }).abortSignal(AbortSignal.timeout(requestBudget(workDeadline)));
           if (error || data?.accepted_count !== 1) throw new Error("ingestion_failed");
           const opportunityId = data.accepted[0].opportunity_id;
@@ -340,23 +420,27 @@ export async function handleDiscovery(request: Request): Promise<Response> {
         for (let index = 0; index < pages.length; index++) {
           const page = pages[index];
           if (page.status === "fulfilled") await saveVerified(group[index], page.value);
-          else errors.push("opportunity_source_read_failed");
+          else {
+            if (importMode) counts.rejected_other++;
+            errors.push("opportunity_source_read_failed");
+          }
         }
       }
       // Keep lower matches and preserve previously saved opportunities. Finish
       // the direct-source/retry batch before deciding whether more search is needed.
-      if (projectedCount >= target) break;
+      if (!importMode && projectedCount >= target) break;
     }
-    if (!dryRun) {
+    if (!dryRun && !importMode) {
       counts.daily_discovered = await dailyCount(admin, userId, run.started_at, runDeadline);
       counts.daily_shortfall = Math.max(0, target - counts.daily_discovered);
     }
-    const unmetQuota = (dryRun ? projectedCount : counts.daily_discovered) < target;
+    const unmetQuota = !importMode && (dryRun ? projectedCount : counts.daily_discovered) < target;
     if (unmetQuota) errors.unshift("daily_target_not_reached");
     counts.warning_count = errors.length;
     const sourceConfigurationMissing = errors.includes("search_provider_not_configured") || errors.includes("approved_search_configuration_unavailable") || errors.includes("search_request_budget_exhausted") || errors.includes("search_request_budget_unavailable");
+    const importRejected = importMode && (counts.rejected_other > 0 || counts.rejected_domain > 0);
     const status = unmetQuota ? (!counts.processed_records && sourceConfigurationMissing ? "blocked" : "failed")
-      : errors.length ? (counts.processed_records ? "partial" : "failed") : "completed";
+      : errors.length || importRejected ? (counts.processed_records ? "partial" : "failed") : "completed";
     await finishRun(admin, run, status, counts, [...new Set(errors)]);
     return json({ run_id: run.run_id, status, dry_run: dryRun, counts, errors: [...new Set(errors)] });
   } catch (error) {

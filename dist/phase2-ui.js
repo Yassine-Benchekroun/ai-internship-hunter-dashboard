@@ -384,6 +384,162 @@
     });
   }
 
+  var importLinkLimit = 30;
+  var discoveryRunPending = false;
+  var discoveryRunMessage = '';
+  var importMessages = {
+    verified_profile_unavailable_or_stale: 'Run Verified Profile Sync before importing.',
+    profile_sync_in_progress: 'Wait for Verified Profile Sync to finish, then retry.',
+    search_targets_unavailable: 'Set your target countries and opportunity types in Settings.',
+    unsupported_import_source: 'Some links use an unsupported site. Use a direct employer or approved posting link.',
+    opportunity_posting_not_found: 'Some links do not contain supported posting data.',
+    opportunity_source_read_failed: 'Some posting pages could not be opened.',
+    opportunity_source_posting_mismatch: 'Some links do not point directly to a posting.',
+    discovery_time_budget_reached: 'The check ran out of time. Try a smaller batch.',
+    opportunity_ingestion_failed: 'Some verified postings could not be saved.',
+    master_cv_content_unavailable: 'Save a Master CV to prepare application materials.',
+    application_preparation_failed: 'Some application materials could not be prepared.'
+  };
+
+  function reportCount(counts, key) {
+    return Number.isSafeInteger(counts[key]) && counts[key] > 0 ? counts[key] : 0;
+  }
+
+  function parseImportLinks(value) {
+    var links = new Set();
+    var lines = String(value || '').split(/\r?\n/);
+    for (var index = 0; index < lines.length; index += 1) {
+      var line = lines[index].trim().replace(/^(?:[-*+]\s+|\d+[.)]\s+)/, '');
+      if (!line) continue;
+      var candidate = line.match(/^\[[^\]]*\]\((https:\/\/\S+)\)$/i)?.[1] ||
+        line.match(/^<(https:\/\/\S+)>$/i)?.[1] || line;
+      try {
+        var url = new URL(candidate);
+        if (!/^https:\/\//i.test(candidate) || /\s/.test(candidate) ||
+            url.username || url.password || (url.port && url.port !== '443')) throw new Error();
+        url.hash = '';
+        if (url.href.length > 450) throw new Error();
+        links.add(url.href);
+      } catch {
+        throw new Error('Line ' + (index + 1) + ' must contain one public HTTPS posting link.');
+      }
+    }
+    if (!links.size || links.size > importLinkLimit) {
+      throw new Error('Enter between 1 and ' + importLinkLimit + ' distinct posting links.');
+    }
+    return Array.from(links);
+  }
+
+  function openOpportunityLinkImport() {
+    if (!window.AIH_requireOwner?.()) return;
+    modal('Import posting links', 'Paste up to 30 direct job posting URLs, one per line.',
+      formField('Posting links', 'phase2-import-urls', '', 'textarea', true,
+        'rows="8" maxlength="16000" spellcheck="false" placeholder="https://example.org/careers/job"') +
+      '<div class="helper-note">Preview checks eligibility. Import adds eligible postings to Opportunity History.</div>' +
+      '<p id="phase2-import-status" class="phase2-sync-note" role="status" aria-live="polite"></p>',
+      '<button type="button" class="btn ghost" onclick="closeModal()">Close</button>' +
+      '<button type="button" id="phase2-import-preview" class="btn ghost" onclick="submitOpportunityLinkImport(true)">Preview</button>' +
+      '<button type="button" id="phase2-import-submit" class="btn primary" onclick="submitOpportunityLinkImport(false)">Import links</button>');
+    document.getElementById('phase2-import-urls')?.focus();
+  }
+
+  function importReportMessage(report, dryRun) {
+    if (report.status === 'running') return 'This request is still running. Check Opportunity History before retrying.';
+    var counts = report.counts || {};
+    function count(key) { return reportCount(counts, key); }
+    var warnings = Array.isArray(report.errors) ? report.errors : [];
+    var errors = new Set(warnings.filter(function (code) {
+      return typeof code === 'string' && Object.hasOwn(importMessages, code);
+    }).map(function (code) { return importMessages[code]; }));
+    var saved = count('inserted_count') + count('updated_count');
+    var checked = count('valid_opportunities') + count('rejected_domain') + count('rejected_other');
+    var status = checked || saved || count('duplicate_count')
+      ? (dryRun
+        ? count('valid_opportunities') + ' eligible postings. ' + count('duplicate_count') + ' duplicates. '
+        : count('inserted_count') + ' added. ' + count('updated_count') + ' updated. ' + count('duplicate_count') + ' duplicates. ') +
+        (count('rejected_domain') + count('rejected_other')) + ' rejected.'
+      : 'No eligible postings were ' + (dryRun ? 'found.' : 'imported.');
+    if (report.refresh_failed) errors.add('The import saved. Reload the dashboard to see those records.');
+    if (warnings.length && !errors.size && report.status !== 'completed') errors.add('The check did not finish cleanly. You can retry with fewer links.');
+    return [status].concat(Array.from(errors)).join(' ');
+  }
+
+  function discoveryRunSummary(report) {
+    if (report.status === 'running') return 'Discovery is already running. Check Run health for its result.';
+    var counts = report.counts || {};
+    var label = { completed: 'Completed', partial: 'Partially completed', failed: 'Failed', blocked: 'Blocked' }[report.status];
+    var parts = [
+      label + '.',
+      reportCount(counts, 'inserted_count') + ' added.',
+      reportCount(counts, 'updated_count') + ' updated.'
+    ];
+    var target = reportCount(counts, 'daily_target');
+    if (target) {
+      parts.push(reportCount(counts, 'daily_discovered') + ' of ' + target + ' new opportunities today.');
+    }
+    var warnings = Array.isArray(report.errors) ? report.errors : [];
+    if (warnings.includes('verified_profile_unavailable_or_stale')) {
+      parts.push('Run Verified Profile Sync before trying again.');
+    } else if (warnings.includes('profile_sync_in_progress')) {
+      parts.push('Wait for Verified Profile Sync to finish.');
+    } else if (warnings.includes('search_targets_unavailable')) {
+      parts.push(importMessages.search_targets_unavailable);
+    } else if (warnings.includes('approved_search_configuration_unavailable')) {
+      parts.push('Discovery sources need to be configured.');
+    } else if (warnings.includes('configured_public_sources_exhausted')) {
+      parts.push('Discovery finished checking the configured sources.');
+    }
+    if (report.refresh_failed) parts.push('Reload the dashboard to update the latest results.');
+    return parts.join(' ');
+  }
+
+  function updateDiscoveryRunControl() {
+    var button = document.getElementById('phase2-discovery-run');
+    var status = document.getElementById('phase2-discovery-run-status');
+    if (button) button.disabled = discoveryRunPending;
+    if (status) status.textContent = discoveryRunMessage;
+  }
+
+  async function runOpportunityDiscoveryNow() {
+    if (!window.AIH_requireOwner?.() || discoveryRunPending) return;
+    discoveryRunPending = true;
+    discoveryRunMessage = 'Searching configured sources and verifying postings…';
+    updateDiscoveryRunControl();
+    try {
+      if (typeof window.AIH_runOpportunityDiscovery !== 'function') {
+        throw new Error('Reload the dashboard to run discovery.');
+      }
+      var result = await window.AIH_runOpportunityDiscovery();
+      discoveryRunMessage = discoveryRunSummary(result);
+    } catch (error) {
+      discoveryRunMessage = error instanceof Error ? error.message : 'Discovery could not be confirmed. Check Run health.';
+    } finally {
+      discoveryRunPending = false;
+      updateDiscoveryRunControl();
+    }
+  }
+
+  async function submitOpportunityLinkImport(dryRun) {
+    if (!window.AIH_requireOwner?.()) return;
+    var input = document.getElementById('phase2-import-urls');
+    var status = document.getElementById('phase2-import-status');
+    var preview = document.getElementById('phase2-import-preview');
+    var submit = document.getElementById('phase2-import-submit');
+    if (!input || !status || !preview || !submit || submit.disabled) return;
+    try {
+      var links = parseImportLinks(input.value);
+      input.disabled = preview.disabled = submit.disabled = true;
+      status.textContent = dryRun ? 'Checking posting links…' : 'Verifying and importing posting links…';
+      if (typeof window.AIH_importOpportunityLinks !== 'function') throw new Error('Reload the dashboard to use the importer.');
+      var report = await window.AIH_importOpportunityLinks(links, dryRun);
+      status.textContent = importReportMessage(report, dryRun);
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : 'The import could not be completed.';
+    } finally {
+      input.disabled = preview.disabled = submit.disabled = false;
+    }
+  }
+
   function profileHTMLPhase2() {
     ensurePhase2State();
     var grouped = profileFactsByCategory();
@@ -498,6 +654,9 @@
     var scheduleStatus = schedulesEnabled ? '<span class="pill green">Scheduled</span>' : '<span class="pill yellow">Deployed · disabled</span>';
     var scheduleText = schedulesEnabled ? 'Recurring triggers are enabled for the configured owner account.' : 'Worker contracts are deployed, but recurring triggers remain disabled until manual validation is complete.';
     var quotaSummary = discoveryQuotaSummary(state.runHealth.opportunityIngestion);
+    var discoveryRunControl = window.__AIH_OWNER_SESSION
+      ? '<div class="phase2-discovery-action"><button type="button" class="btn small ghost" id="phase2-discovery-run" onclick="runOpportunityDiscoveryNow()"' + (discoveryRunPending ? ' disabled' : '') + '>Run discovery now</button><p id="phase2-discovery-run-status" role="status">' + esc(discoveryRunMessage) + '</p></div>'
+      : '';
     return pageIntro('Control room', 'Settings', 'Configure discovery, profile data, and automation safeguards.', '') +
       '<div class="settings-grid phase2-settings-grid">' +
       '<div class="setting-card"><div class="panel-head"><h2>Matching & discovery</h2></div>' +
@@ -519,7 +678,7 @@
       '<div class="setting-row"><div><div class="setting-name">Restore seeded demo records</div><div class="setting-help">Creates a clearly labeled local walkthrough state. It never syncs over real Supabase records.</div></div><button class="btn small ghost" onclick="resetDemo()">Restore demo</button></div></div>' +
       '<div class="setting-card phase2-automation-card"><div class="panel-head"><div><h2>Schedules</h2><div class="panel-kicker">Three independent workers with separate run history and retries</div></div>' + scheduleStatus + '</div>' +
       '<div class="phase2-automation"><div class="phase2-automation-num">01</div><div><h3>Verified Profile Sync</h3><p>GitHub + Portfolio → extract → verify → deduplicate → update Verified Profile</p></div>' + (schedulesEnabled ? '<span class="pill green">Scheduled</span>' : '<span class="pill yellow">Deployed · disabled</span>') + '</div>' +
-      '<div class="phase2-automation"><div class="phase2-automation-num">02</div><div><h3>Opportunity Discovery & Application Preparation</h3><p>Verified Profile → search → verify → match → CV → email draft</p></div>' + (schedulesEnabled ? '<span class="pill green">Scheduled</span>' : '<span class="pill yellow">Deployed · disabled</span>') + '</div>' +
+      '<div class="phase2-automation"><div class="phase2-automation-num">02</div><div><h3>Opportunity Discovery & Application Preparation</h3><p>Verified Profile → search → verify → match → CV → email draft</p>' + discoveryRunControl + '</div>' + (schedulesEnabled ? '<span class="pill green">Scheduled</span>' : '<span class="pill yellow">Deployed · disabled</span>') + '</div>' +
       '<div class="phase2-automation"><div class="phase2-automation-num">03</div><div><h3>Application & Email Monitoring</h3><p>Application History → monitor replies → update status → prepare follow-ups</p></div>' + (schedulesEnabled ? '<span class="pill green">Scheduled</span>' : '<span class="pill yellow">Deployed · disabled</span>') + '</div>' +
       '<div class="phase2-workflow"><strong>Dependency order</strong><span>07:00 Profile Sync</span><span>08:00 Discovery</span><span>Periodic Monitoring</span><em>' + esc(scheduleText) + '</em></div></div>' +
       '</div>';
@@ -628,6 +787,16 @@
       if (head) card.insertBefore(marker, head);
     });
     if (state.route === 'history') {
+      var historyActions = document.querySelector('.content .source-banner .button-row');
+      if (historyActions && window.__AIH_OWNER_SESSION && !document.getElementById('phase2-import-links')) {
+        var importButton = document.createElement('button');
+        importButton.type = 'button';
+        importButton.id = 'phase2-import-links';
+        importButton.className = 'btn small ghost';
+        importButton.textContent = 'Import posting links';
+        importButton.onclick = openOpportunityLinkImport;
+        historyActions.prepend(importButton);
+      }
       var rows = document.querySelectorAll('.table-wrap tbody tr');
       rows.forEach(function (row) {
         var scoreCell = row.children[5];
@@ -646,6 +815,7 @@
     style.textContent = '.phase2-sync-card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(15,31,47,.96),rgba(11,25,39,.96));border-radius:14px;padding:18px;margin-bottom:15px}.phase2-sync-head,.phase2-category-head,.phase2-overview-profile .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.phase2-eyebrow{color:var(--cyan);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.12em}.phase2-sync-head h3{margin:4px 0 0}.phase2-sync-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:15px}.phase2-sync-grid div,.phase2-overview-profile-stats div{border:1px solid var(--line);border-radius:10px;padding:11px;background:rgba(255,255,255,.025)}.phase2-sync-grid span,.phase2-overview-profile-stats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.phase2-sync-grid strong{display:block;color:var(--text);font-size:11px;margin-top:6px;line-height:1.4}.phase2-sync-note{margin-top:12px;color:var(--muted);font-size:10px;line-height:1.5}.phase2-profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase2-category-head h3{margin:0}.phase2-category-head .pill{min-width:24px;text-align:center}.phase2-fact{display:flex;justify-content:space-between;gap:15px;border-top:1px solid var(--line);padding:11px 0}.phase2-fact:first-child{border-top:0;padding-top:0}.phase2-fact-name{font-weight:700;color:var(--text);font-size:11px}.phase2-fact-description,.phase2-fact-evidence,.phase2-fact-meta{color:var(--muted);font-size:9px;line-height:1.45}.phase2-fact-description{margin-top:3px}.phase2-fact-evidence{margin-top:5px}.phase2-fact-meta{min-width:105px;text-align:right}.phase2-status{display:inline-block;border-radius:999px;padding:3px 7px;font-size:8px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.phase2-status.verified{background:rgba(98,220,155,.12);color:var(--green)}.phase2-status.new{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.needs-review{background:rgba(243,200,107,.12);color:var(--yellow)}.phase2-status.source-missing{background:rgba(239,122,132,.12);color:var(--red)}.phase2-source-missing{color:var(--red)}.phase2-evidence{color:var(--cyan);text-decoration:none}.phase2-empty-fact{border-top:1px solid var(--line);padding-top:13px;color:var(--muted);font-size:10px}.phase2-overview-profile-wrap{margin-bottom:15px}.phase2-overview-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.phase2-overview-profile-stats strong{display:block;font-size:20px;color:var(--text);margin-bottom:4px}.phase2-identity-editor{display:flex;gap:7px;align-items:center}.phase2-identity-editor input{width:210px}.phase2-provider-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.phase2-automation{display:grid;grid-template-columns:34px 1fr auto;align-items:start;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}.phase2-automation-num{color:var(--cyan);font-family:ui-monospace,monospace;font-weight:700}.phase2-automation h3{margin:0 0 5px;font-size:12px}.phase2-automation p{margin:0;color:var(--muted);font-size:10px;line-height:1.5}.phase2-workflow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:15px;padding:12px;border:1px dashed var(--line2);border-radius:10px;color:var(--muted);font-size:10px}.phase2-workflow strong{color:var(--text)}.phase2-workflow span{color:var(--cyan)}.phase2-workflow em{width:100%;color:var(--muted);font-size:9px}.phase2-classification{margin-right:4px}.phase2-card-classification{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}.phase2-application-status .phase2-pill-label{color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.05em}.phase2-demo-notice{margin-bottom:15px}.phase2-settings-grid{grid-template-columns:1fr 1fr}.phase2-automation-card{grid-column:1/-1}@media(max-width:800px){.phase2-sync-grid{grid-template-columns:1fr 1fr}.phase2-profile-grid,.phase2-settings-grid{grid-template-columns:1fr}.phase2-automation-card{grid-column:auto}.phase2-fact{display:block}.phase2-fact-meta{text-align:left;margin-top:8px}.phase2-identity-editor{flex-direction:column;align-items:stretch}.phase2-identity-editor input{width:100%}.phase2-provider-actions{justify-content:flex-start}}';
     style.textContent += '.phase2-run-health{margin-top:15px}.phase2-run-health-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.phase2-run-health-card{border:1px solid var(--line);border-radius:10px;padding:12px;background:rgba(255,255,255,.025)}.phase2-run-health-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.phase2-run-health-card h3{font-size:11px}.phase2-run-health-meta{margin-top:13px;padding-top:10px;border-top:1px solid var(--line)}.phase2-run-health-meta span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.phase2-run-health-meta strong{display:block;color:var(--text);font-size:11px;margin-top:5px}.phase2-run-health-detail{color:var(--muted);font-size:9px;line-height:1.5;margin-top:10px}@media(max-width:800px){.phase2-run-health-grid{grid-template-columns:1fr}}';
     style.textContent += '.phase2-fact-actions{display:flex;justify-content:flex-end;gap:5px;margin-top:8px}.phase2-fact-origin{display:block;color:var(--faint);font-size:8px;margin-top:8px}@media(max-width:800px){.phase2-fact-actions{justify-content:flex-start}}';
+    style.textContent += '.phase2-discovery-action{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}';
     document.head.appendChild(style);
   }
 
@@ -669,6 +839,8 @@
   window.openProfileFactEditor = openProfileFactEditor;
   window.saveProfileFact = saveProfileFact;
   window.removeProfileFact = removeProfileFact;
+  window.submitOpportunityLinkImport = submitOpportunityLinkImport;
+  window.runOpportunityDiscoveryNow = runOpportunityDiscoveryNow;
   window.connectProvider = connectProvider;
   window.refreshProviderSession = refreshProviderSession;
   window.disconnectProvider = disconnectProvider;

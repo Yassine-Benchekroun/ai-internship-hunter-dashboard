@@ -56,10 +56,11 @@ export function verifyJob(job, sourceUrl, settings, now = new Date()) {
   const description = text(job.description);
   const source = canonicalUrl(sourceUrl);
   if (!organization || !position || !description || !source) return { rejected: 'missing_verified_fields' };
-  const domain = /\b(?:artificial intelligence|machine learning|deep learning|computer vision|data science|AI|ML|NLP|robotics|software|research scientist)\b/i;
+  const domain = /\b(?:artificial intelligence|machine learning|deep learning|computer vision|data science|AI|ML|NLP|robotics|software|research scientist|intelligence artificielle|vision par ordinateur|aprendizaje automático|künstliche intelligenz)\b|人工智能|机器学习|機械学習|コンピュータビジョン/i;
   const isIntern = /\b(?:intern(?:ship)?|stage|stagiaire|praktikum|research assistant|research opportunity|visiting student)\b/i.test(position);
   const isResearch = /\b(?:research|lab|university)\b/i.test(position);
-  const unrelatedRole = /\b(?:accounting|sales|marketing|administrative|change management|communications|content manager|mechanical technician)\b/i.test(position);
+  const nonTechnicalTitle = /\b(?:accounting|sales|marketing|administrative|change management|communications|content manager|mechanical technician|MBA|operations planning|business development|finance|legal|public policy|human resources|talent acquisition|procurement|event management|investment analyst|investment services|sector analyst|equity support|IT support|technical support|recruitment|enablement|strategic program management|hardware engineer|safety reporting|service designer|UX designer|antenna design|mechanical engineering|satellite programs|thermal\s*&\s*manufacturing)\b/i;
+  const unrelatedRole = nonTechnicalTitle.test(position);
   if (!domain.test(`${position} ${description}`) || !isIntern || unrelatedRole) return { rejected: 'domain_irrelevant' };
   const opportunityType = isResearch ? 'research' : 'internship';
   if (!settings.opportunity_types?.includes(opportunityType)) return { rejected: 'type_not_configured' };

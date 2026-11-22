@@ -30,6 +30,8 @@ test('verifier preserves unknown facts and rejects unrelated, expired and unveri
   assert.equal(verifyJob({...job,validThrough:'2000-01-01'},source,settings).rejected,'expired');
   assert.equal(verifyJob({...job,jobLocation:null,jobLocationType:'TELECOMMUTE'},source,settings).opportunity.country,'Unknown');
   assert.equal(verifyJob({...job,title:'AI Change Management Intern'},source,settings).rejected,'domain_irrelevant');
+  assert.equal(verifyJob({...job,title:'Investment Services Summer Intern'},source,settings).rejected,'domain_irrelevant');
+  assert.equal(verifyJob({...job,title:'Technical Support Engineering Intern'},source,settings).rejected,'domain_irrelevant');
   assert.equal(verifyJob({...job,title:'Senior Machine Learning Engineer'},source,settings).rejected,'domain_irrelevant');
 });
 test('unverified candidate skills do not raise scores; status cannot change classification', () => {
@@ -81,9 +83,11 @@ test('null and malformed optional members do not abort valid posting verificatio
 const endpointSource = await readFile(new URL('../supabase/functions/discover-opportunities/index.ts', import.meta.url), 'utf8');
 const endpointJs = stripTypeScriptTypes(endpointSource.replace(/^import .+;\r?\n/gm,''), {mode:'strip'});
 const coreUrl = new URL('../supabase/functions/discover-opportunities/core.mjs', import.meta.url).href;
+const boardFeedsUrl = new URL('../supabase/functions/discover-opportunities/board-feeds.mjs', import.meta.url).href;
 const profileCoreUrl = new URL('../supabase/functions/sync-profile/core.mjs', import.meta.url).href;
 const boundaries = await import(`data:text/javascript;base64,${Buffer.from(`
 import {canonicalUrl,verifyJob,jsonLdJobs,scoreOpportunity,prepareMaterials,contentKey} from ${JSON.stringify(coreUrl)};
+import {boardFeedKind,boardFeedJobs,greenhousePostingEndpoint,greenhousePostingJob} from ${JSON.stringify(boardFeedsUrl)};
 import {normalizedSources,sourceKey} from ${JSON.stringify(profileCoreUrl)};
 const corsHeaders = {};
 let fixture;
@@ -164,7 +168,7 @@ test('outer fetch deadline also bounds a stalled resolver before HTTP begins', a
   assert.throws(()=>boundaries.requestBudget(100,10000,()=>100),error=>error.code==='discovery_time_budget_reached');
 });
 
-function runDiscovery({target, daily, previous, postings, dryRun=false, retry=false, checkCount}={}) {
+function runDiscovery({target, daily, previous, postings, dryRun=false, retry=false, checkCount, importUrls}={}) {
   const userId = 'account-owner';
   const runId = 'discovery-run';
   const startedAt = new Date().toISOString();
@@ -217,6 +221,7 @@ function runDiscovery({target, daily, previous, postings, dryRun=false, retry=fa
           if (name==='automation_ingest_opportunities') {
             assert.equal(args.p_payload.user_id,userId);
             assert.equal(args.p_payload.request_id,runId);
+            assert.equal(args.p_payload.source_name, importUrls ? 'opportunity_link_import' : 'opportunity_discovery');
             const [record] = args.p_payload.opportunities;
             fixture.ingested.push(record);
             const insert=known.has(record.source_url) ? 0 : 1;
@@ -234,7 +239,7 @@ function runDiscovery({target, daily, previous, postings, dryRun=false, retry=fa
   };
   boundaries.setFixture(fixture);
   const request=new Request('https://worker.example.org/discovery',{method:'POST',
-    body:JSON.stringify({dry_run:dryRun,request_id:'discovery-request'})});
+    body:JSON.stringify({dry_run:dryRun,request_id:'discovery-request',import_urls:importUrls})});
   return boundaries.handleDiscovery(request).then(response=>response.json()).then(result=>({result,fixture}));
 }
 const oldPosting = {...job,url:source};
@@ -288,4 +293,19 @@ test('a filled daily quota still lets a prior attempt repair its application mat
   assert.equal(result.counts.daily_discovered,1);
   assert.equal(result.counts.inserted_count,0);
   assert.deepEqual(fixture.prepared,[oldPosting.url]);
+});
+
+test('link import verifies only submitted supported URLs and never reads or fills the daily query quota', async () => {
+  const denied = 'https://unapproved.example.org/listing';
+  const params = {target:30,daily:0,previous:[],postings:[oldPosting,newPosting],
+    importUrls:[`${newPosting.url}?utm_source=chat`,newPosting.url,denied]};
+  const preview = await runDiscovery({...params,dryRun:true});
+  assert.equal(preview.result.counts.dry_run_new_candidates,1);
+  assert.deepEqual(preview.fixture.ingested,[]);
+  const {result,fixture} = await runDiscovery(params);
+  assert.deepEqual(fixture.fetched,[newPosting.url]);
+  assert.deepEqual(fixture.countCalls,[]);
+  assert.equal(result.status,'partial');
+  assert.equal(result.counts.inserted_count,1);
+  assert.deepEqual(result.errors,['unsupported_import_source']);
 });

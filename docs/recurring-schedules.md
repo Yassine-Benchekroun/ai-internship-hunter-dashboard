@@ -28,7 +28,11 @@ Backend `approved_search_sources` accepts entries such as:
 [{"kind":"jsonld","source_url":"https://careers.example.org/individual-opening"}]
 ```
 
-Supported input formats are Schema.org `JobPosting` JSON-LD, HTML microdata, and `jobposting_json` feeds. Pages without reliable structured posting data are not guessed into opportunities. Arbitrary lab/professor prose is not currently extracted. `search_queries` can contain approved search strings; broad web search uses a backend-only `BRAVE_SEARCH_API_KEY`. A search key is optional when approved posting sources are supplied. No private candidate data is sent to that search service.
+Supported input formats are Schema.org `JobPosting` JSON-LD, HTML microdata, `jobposting_json` feeds, and official Greenhouse and Lever posting feeds. Configure a `greenhouse_jobs` source with `https://boards-api.greenhouse.io/v1/boards/BOARD/jobs?content=true`, or a `lever_jobs` source with `https://api.lever.co/v0/postings/BOARD?mode=json`. Each feed also needs its publisher's `organization` name. A Greenhouse feed with a branded application URL can set `posting_host` to its verified employer hostname. The adapter checks the posting's board and ID before accepting its URL. These public feeds require no search API key.
+
+Pages without reliable structured posting data are not guessed into opportunities. Arbitrary lab/professor prose is not currently extracted. `search_queries` can contain approved search strings; optional broad web search uses a backend-only `BRAVE_SEARCH_API_KEY`. No private candidate data is sent to that search service.
+
+Owners can also paste up to 30 direct posting links into **Opportunity History → Import posting links**. Preview verifies links without saving. Import accepts supported public posting hosts and owner-approved hosts and uses the same verification, scoring and artifact preparation as discovery. Link imports have their own run marker and do not count toward the recurring worker's daily discovery quota.
 
 Search results are locators only: source documents must be fetched and verified. Country and opportunity-type preferences come from `user_settings`. Unknown location, funding, deadline or recipient information stays unknown. Known countries outside the configured list and unrelated or expired roles are rejected. Both top and lower matches are saved.
 
@@ -84,7 +88,7 @@ Both schedule migrations are applied to AI Internship Hunter: `20261115190017_in
 
 ## Remaining setup before recurrence
 
-Broad search dry-run verification reported `search_provider_not_configured`: add `BRAVE_SEARCH_API_KEY` to Supabase's server-side Edge Function secrets, then validate discovery with the normal daily target and source coverage. Never put this key in frontend code or paste it into run logs. The structured-source parser currently supports JobPosting JSON-LD/microdata/JSON feeds; arbitrary professor/lab prose remains unsupported.
+Discovery can use configured official job board feeds without a search key. Validate the configured feed set with the normal daily target before activation. A broad-search key is optional and belongs in server-side Edge Function secrets.
 
 Gmail authorization is deliberately deferred at the user's request. Later, connect the read-only provider and validate a real application, reply replay, and follow-up behavior. Record the remaining validations only after those checks pass. Keep all recurring triggers disabled until then. No automatic sending is implemented.
 

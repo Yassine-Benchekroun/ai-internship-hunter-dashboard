@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const phase2Source = fs.readFileSync(new URL('../dist/phase2-ui.js', import.meta.url), 'utf8');
 
-function loadPhase2(opportunities = [], saveSettings) {
+function loadPhase2(opportunities = [], saveSettings, importUi = {}) {
   const state = {
     threshold: 82,
     opportunities,
@@ -31,7 +31,7 @@ function loadPhase2(opportunities = [], saveSettings) {
     head: noOpNode(),
     body: noOpNode(),
     createElement: noOpNode,
-    getElementById: (id) => id === 'phase2-sender-email' ? { value: 'me@example.com' } : noOpNode(),
+    getElementById: (id) => importUi.nodes?.[id] ?? (id === 'phase2-sender-email' ? { value: 'me@example.com' } : noOpNode()),
     querySelector: noOpNode,
     querySelectorAll: () => []
   };
@@ -42,7 +42,13 @@ function loadPhase2(opportunities = [], saveSettings) {
     URL,
     MATCH_THRESHOLD: 70,
     state,
-    window: { __AIH_OWNER_SESSION: null, AIH_saveBackendSettings: saveSettings },
+    window: {
+      __AIH_OWNER_SESSION: importUi.ownerSession ?? null,
+      AIH_saveBackendSettings: saveSettings,
+      AIH_requireOwner: importUi.requireOwner,
+      AIH_importOpportunityLinks: importUi.importLinks,
+      AIH_runOpportunityDiscovery: importUi.runDiscovery
+    },
     pageIntro: () => '',
     icon: () => '',
     esc: (value) => String(value ?? ''),
@@ -62,7 +68,16 @@ function loadPhase2(opportunities = [], saveSettings) {
   };
   vm.createContext(context);
   vm.runInContext(phase2Source, context, { filename: 'phase2-ui.js' });
-  return { api: context.window.AIH_phase2, saveDailyQuota: context.window.saveDailyQuota, saveSenderIdentity: context.window.saveSenderIdentity, profileHTML: context.profileHTML, settingsHTML: context.settingsHTML, state };
+  return {
+    api: context.window.AIH_phase2,
+    saveDailyQuota: context.window.saveDailyQuota,
+    saveSenderIdentity: context.window.saveSenderIdentity,
+    submitImport: context.window.submitOpportunityLinkImport,
+    runDiscovery: context.window.runOpportunityDiscoveryNow,
+    profileHTML: context.profileHTML,
+    settingsHTML: context.settingsHTML,
+    state
+  };
 }
 
 test('score classification uses a fixed 70 boundary despite saved legacy values', () => {
@@ -93,6 +108,68 @@ test('changing the daily quota saves only the quota field', async () => {
   await saveDailyQuota('20');
   assert.equal(state.qualityTarget, 20);
   assert.deepEqual(writes, [['daily_opportunity_target']]);
+});
+
+test('owner link import previews a normalized batch and reports safe feedback', async () => {
+  const calls = [];
+  const nodes = {
+    'phase2-import-urls': { value: '- [Example posting](https://example.org/jobs/123#apply)\nhttps://example.org/jobs/123' },
+    'phase2-import-status': {},
+    'phase2-import-preview': {},
+    'phase2-import-submit': {}
+  };
+  let owner = false;
+  const { submitImport } = loadPhase2([], undefined, {
+    nodes,
+    requireOwner: () => owner,
+    importLinks: async (links, dryRun) => {
+      calls.push([Array.from(links), dryRun]);
+      return {
+        status: 'partial',
+        counts: { valid_opportunities: 1, rejected_other: 1 },
+        errors: ['unsupported_import_source', 'arbitrary_error_that_must_not_render']
+      };
+    }
+  });
+  await submitImport(true);
+  assert.equal(calls.length, 0);
+  owner = true;
+  await submitImport(true);
+  assert.deepEqual(calls, [[['https://example.org/jobs/123'], true]]);
+  assert.match(nodes['phase2-import-status'].textContent, /1 eligible posting/);
+  assert.match(nodes['phase2-import-status'].textContent, /unsupported site/);
+  assert.doesNotMatch(nodes['phase2-import-status'].textContent, /arbitrary_error/);
+  nodes['phase2-import-urls'].value = 'http://example.org/jobs/123';
+  await submitImport(false);
+  assert.equal(calls.length, 1);
+  assert.match(nodes['phase2-import-status'].textContent, /Line 1 must contain one public HTTPS posting link/);
+  assert.equal(nodes['phase2-import-submit'].disabled, false);
+});
+
+test('owner can run discovery now and sees pending state and the saved count', async () => {
+  const nodes = { 'phase2-discovery-run': {}, 'phase2-discovery-run-status': {} };
+  let finish;
+  let runs = 0;
+  const { settingsHTML, runDiscovery } = loadPhase2([], undefined, {
+    ownerSession: { id: 'owner' },
+    requireOwner: () => true,
+    nodes,
+    runDiscovery: () => {
+      runs += 1;
+      return new Promise(resolve => { finish = resolve; });
+    }
+  });
+  assert.doesNotMatch(loadPhase2().settingsHTML(), /Run discovery now/);
+  assert.match(settingsHTML(), /Run discovery now/);
+  const pending = runDiscovery();
+  assert.equal(nodes['phase2-discovery-run'].disabled, true);
+  assert.match(nodes['phase2-discovery-run-status'].textContent, /Searching configured sources/);
+  await runDiscovery();
+  assert.equal(runs, 1);
+  finish({ status: 'failed', counts: { inserted_count: 3, updated_count: 2, daily_target: 30, daily_discovered: 12 } });
+  await pending;
+  assert.equal(nodes['phase2-discovery-run'].disabled, false);
+  assert.match(nodes['phase2-discovery-run-status'].textContent, /Failed\. 3 added\. 2 updated\. 12 of 30 new opportunities today/);
 });
 
 test('older scores are reclassified without changing application status or restoring hidden cards', () => {
