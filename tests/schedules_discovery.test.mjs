@@ -65,6 +65,8 @@ test('targeted materials preserve Master CV dates/content and never fabricate re
   const material = prepareMaterials(record,facts,master,{sender_identity_name:'Test Candidate'});
   assert.ok(material.cv.content.endsWith(master.content));
   assert.equal(material.email.recipient,null); assert.equal(material.readiness,'Needs review');
+  assert.match(material.email.body, /Best regards,\nTest Candidate$/);
+  assert.doesNotMatch(material.email.body, /\[Your name/);
   assert.doesNotMatch(material.cv.content,/PyTorch/);
   assert.equal(await contentKey(material),await contentKey(prepareMaterials(record,facts,master,{sender_identity_name:'Test Candidate'})));
   assert.throws(()=>prepareMaterials(record,facts,{},{}),/master_cv/);

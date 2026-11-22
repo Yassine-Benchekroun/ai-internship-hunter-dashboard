@@ -61,7 +61,7 @@ function loadPhase2(opportunities = [], saveSettings, importUi = {}) {
     toggleConnection: () => {},
     render: () => {},
     saveManualApplication: () => {},
-    persist: () => {},
+    persist: importUi.persist ?? (() => {}),
     toast: () => {},
     navigate: () => {},
     opp: () => null
@@ -71,6 +71,7 @@ function loadPhase2(opportunities = [], saveSettings, importUi = {}) {
   return {
     api: context.window.AIH_phase2,
     saveDailyQuota: context.window.saveDailyQuota,
+    saveSenderName: context.window.saveSenderName,
     saveSenderIdentity: context.window.saveSenderIdentity,
     submitImport: context.window.submitOpportunityLinkImport,
     runDiscovery: context.window.runOpportunityDiscoveryNow,
@@ -236,6 +237,25 @@ test('saving sender identity preserves an existing provider connection state', (
   assert.equal(state.providerConnectionStatus, 'connected');
   assert.equal(state.emailProviderConnected, true);
   assert.equal(state.connected, true);
+});
+
+test('sender name is shown in settings and saves only the name used in drafts', async () => {
+  const fieldsSaved = [];
+  const { saveSenderName, settingsHTML, state } = loadPhase2([], async fields => fieldsSaved.push(Array.from(fields)), {
+    nodes: { 'phase2-sender-name': { value: '  Example   Name  ' } },
+    persist: () => assert.fail('Name save should not sync dashboard records')
+  });
+  state.senderIdentityName = 'Previous Name';
+  state.connectedEmail = 'me@example.com';
+  state.providerConnectionStatus = 'connected';
+  assert.match(settingsHTML(), /id="phase2-sender-name"[^>]*value="Previous Name"/);
+
+  await saveSenderName();
+
+  assert.equal(state.senderIdentityName, 'Example Name');
+  assert.equal(state.connectedEmail, 'me@example.com');
+  assert.equal(state.providerConnectionStatus, 'connected');
+  assert.deepEqual(fieldsSaved, [['sender_identity_name']]);
 });
 
 test('legacy connected state follows the provider connection status', () => {

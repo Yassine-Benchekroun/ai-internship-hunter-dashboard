@@ -669,6 +669,7 @@
       '<div class="setting-row"><div><div class="setting-name">Approved profile sources</div><div class="setting-help">Leave as [] until approved source values are provided. JSON fields: source_type, source_name, source_url.</div></div><textarea id="phase2-approved-sources" class="input" rows="6" spellcheck="false">' + esc(JSON.stringify(state.approvedProfileSources, null, 2)) + '</textarea></div>' +
       '<div class="setting-row"><div><div class="setting-name">Current backend source summary</div><div class="setting-help">' + sourceSummary + '</div></div><button class="btn small primary" onclick="saveBackendSettings()">Save backend settings</button></div></div>' +
       '<div class="setting-card"><div class="panel-head"><div><h2>Email identity & connection</h2><div class="panel-kicker">These are intentionally separate concepts</div></div><span class="pill ' + (providerConnected ? 'green' : 'yellow') + '">' + (providerConnected ? 'Provider connected' : 'Provider not connected') + '</span></div>' +
+      '<div class="setting-row phase2-identity-row"><div><label for="phase2-sender-name" class="setting-name">Sender name</label><div class="setting-help">Signs new application and follow-up email drafts.</div></div><div class="phase2-identity-editor"><input id="phase2-sender-name" type="text" autocomplete="name" maxlength="160" value="' + esc(state.senderIdentityName) + '" placeholder="Your full name"/><button id="phase2-save-sender-name" type="button" class="btn small primary" onclick="saveSenderName()">Save name</button></div></div>' +
       '<div class="setting-row phase2-identity-row"><div><div class="setting-name">Sender identity</div><div class="setting-help">Saved address used in drafts. It does not authorize Gmail or another provider.</div></div><div class="phase2-identity-editor"><input id="phase2-sender-email" type="email" value="' + esc(identity) + '" placeholder="you@example.com"/><button class="btn small primary" onclick="saveSenderIdentity()">Save identity</button></div></div>' +
       '<div class="setting-row"><div><div class="setting-name">Gmail / email API connection</div><div class="setting-help">Read-only Gmail authorization for future mailbox monitoring. Tokens stay backend-only and this never sends email.</div></div><div class="phase2-provider-actions"><span class="pill ' + (providerConnected ? 'green' : providerStatus === 'error' ? 'red' : 'yellow') + '">' + providerLabel + '</span>' + (providerConnected ? '<button class="btn small ghost" onclick="refreshProviderSession()">Refresh session</button><button class="btn small danger" onclick="disconnectProvider()">Disconnect & revoke</button>' : '<button class="btn small primary" onclick="connectProvider()">Connect Gmail</button>') + '</div></div>' +
       '<div class="setting-row"><div><div class="setting-name">Automatic sending</div><div class="setting-help">Always off. Every draft and send action remains explicit.</div></div><span class="pill red">Disabled</span></div></div>' +
@@ -738,6 +739,34 @@
     if (status === 'connected') toast('Gmail provider connected. Automatic sending remains off.');
     else if (status === 'denied') toast('Gmail authorization was declined.', true);
     else toast('Gmail authorization could not be completed.', true);
+  }
+
+  async function saveSenderName() {
+    if (window.AIH_requireOwner && !window.AIH_requireOwner()) return;
+    var input = document.getElementById('phase2-sender-name');
+    var button = document.getElementById('phase2-save-sender-name');
+    if (!input || typeof input.value !== 'string' || !button || button.disabled) return;
+
+    var name = input.value.replace(/\s+/g, ' ').trim();
+    if (name.length > 160 || /[\x00-\x1F\x7F]/.test(name)) {
+      toast('Enter a sender name of up to 160 characters.', true);
+      return;
+    }
+
+    var previousName = state.senderIdentityName;
+    state.senderIdentityName = name;
+    button.disabled = true;
+    try {
+      if (window.AIH_saveBackendSettings) await window.AIH_saveBackendSettings(['sender_identity_name']);
+      else persist();
+      render();
+      toast(name ? 'Sender name saved.' : 'Sender name cleared.');
+    } catch {
+      if (state.senderIdentityName === name) state.senderIdentityName = previousName;
+      toast('Sender name could not be saved. Try again.', true);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function saveSenderIdentity() {
@@ -833,6 +862,7 @@
     classifyByScore(id);
   };
   toggleConnection = function () { navigate('settings'); toast('Sender identity and provider connection are managed separately in Settings.'); };
+  window.saveSenderName = saveSenderName;
   window.saveSenderIdentity = saveSenderIdentity;
   window.saveDailyQuota = saveDailyQuota;
   window.saveBackendSettings = saveBackendSettings;
