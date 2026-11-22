@@ -45,6 +45,8 @@ try {
   await db.exec(await readFile('supabase/tests/search_request_budget.sql', 'utf8'));
   console.log('Monthly discovery search request cap and RPC permissions passed.');
   await db.exec('begin; set local role service_role;');
+  const classification = (await db.query('select public.classify_opportunity_score(69) as value')).rows[0].value;
+  if (classification !== 'lower') throw new Error('Worker score classification helper is not accessible');
   const liveRun = (await db.query(`select public.automation_begin_schedule('3a419f7d-36e0-43d5-aa39-156b3177b84a','profile_sync',gen_random_uuid(),true,'[]') as value`)).rows[0].value;
   await db.query('select public.automation_finish_schedule($1,$2,$3,$4)', [liveRun.run_id, 'blocked', {}, ['source_unavailable']]);
   const ingested = (await db.query(`select public.automation_ingest_opportunities($1) as value`, [{user_id:'3a419f7d-36e0-43d5-aa39-156b3177b84a',opportunities:[{organization:'Fixture',position:'AI research intern',source_url:'https://example.org/role-check',domain_relevant:true,match_score:68}]}])).rows[0].value;
