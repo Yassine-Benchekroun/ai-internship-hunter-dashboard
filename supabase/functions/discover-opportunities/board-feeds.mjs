@@ -1,4 +1,4 @@
-import { canonicalUrl, countryName } from './core.mjs';
+import { canonicalUrl, countryName, isInternshipTitle } from './core.mjs';
 import { portfolioText } from '../sync-profile/core.mjs';
 
 const greenhouseApiHost = 'boards-api.greenhouse.io';
@@ -12,7 +12,6 @@ const greenhouseFeedPath = new RegExp(`^/v1/boards/(${boardName})/jobs$`, 'i');
 const greenhouseDetailPath = new RegExp(`^/v1/boards/(${boardName})/jobs/([1-9][0-9]*)$`, 'i');
 const greenhousePostingPath = new RegExp(`^/(${boardName})/jobs/([1-9][0-9]*)$`, 'i');
 const leverFeedPath = new RegExp(`^/v0/postings/(${boardName})$`, 'i');
-const internshipTitle = /\b(?:intern(?:ship)?|stage|stagiaire|praktikum|research assistant|research opportunity|visiting student)\b/i;
 const leverId = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 function boardFeed(url) {
@@ -67,7 +66,7 @@ const countryAliases = new Map(Object.entries({
   'united states': 'US', 'u.s.': 'US', usa: 'US', 'u.s.a.': 'US',
   france: 'FR', germany: 'DE', deutschland: 'DE', spain: 'ES', españa: 'ES',
   'united arab emirates': 'AE', uae: 'AE', 'u.a.e.': 'AE', 'saudi arabia': 'SA',
-  china: 'CN', '中国': 'CN', japan: 'JP', '日本': 'JP',
+  china: 'CN', '中国': 'CN', japan: 'JP', '日本': 'JP', morocco: 'MA', maroc: 'MA', 'المغرب': 'MA',
   'united kingdom': 'GB', uk: 'GB', 'u.k.': 'GB', canada: 'CA', india: 'IN',
   israel: 'IL', netherlands: 'NL', australia: 'AU', singapore: 'SG', ireland: 'IE',
   italy: 'IT', switzerland: 'CH', poland: 'PL', sweden: 'SE', belgium: 'BE', qatar: 'QA',
@@ -171,7 +170,7 @@ export function boardFeedJobs(url, payload, organization, approvedPostingHost) {
   const jobs = [];
   for (const record of records) {
     const title = greenhouse ? record?.title : record?.text;
-    if (typeof title !== 'string' || !internshipTitle.test(title)) continue;
+    if (typeof title !== 'string' || !isInternshipTitle(title)) continue;
     const job = greenhouse ? greenhouseJob(record, source, organization) : leverJob(record, source, organization);
     if (job) jobs.push(job);
   }

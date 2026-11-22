@@ -34,6 +34,20 @@ test('verifier preserves unknown facts and rejects unrelated, expired and unveri
   assert.equal(verifyJob({...job,title:'Technical Support Engineering Intern'},source,settings).rejected,'domain_irrelevant');
   assert.equal(verifyJob({...job,title:'Senior Machine Learning Engineer'},source,settings).rejected,'domain_irrelevant');
 });
+test('Moroccan internships normalize published country aliases and French PFE titles', () => {
+  const morocco = { ...settings, target_countries: ['Morocco'] };
+  const posting = { ...job, title: 'PFE en IA', description: 'Développement de solutions IA.', hiringOrganization: 'Example Lab' };
+  for (const country of ['MA', 'Maroc', 'Morocco', 'المغرب']) {
+    const candidate = { ...posting, jobLocation: { address: { addressLocality: 'Casablanca', addressCountry: country } } };
+    const result = verifyJob(candidate, source, morocco);
+    assert.equal(result.opportunity.country, 'Morocco');
+    assert.equal(result.opportunity.city, 'Casablanca');
+    assert.equal(verifyJob(candidate, source, settings).rejected, 'country_not_configured');
+  }
+  const fromStreet = streetAddress => verifyJob({ ...posting, jobLocation: { address: { streetAddress } } }, source, morocco).opportunity;
+  assert.equal(fromStreet('Rabat, MA').city, 'Rabat');
+  assert.equal(fromStreet('Boston, MA').country, 'Unknown');
+});
 test('unverified candidate skills do not raise scores; status cannot change classification', () => {
   const record = verifyJob(job,source,settings).opportunity;
   const score = scoreOpportunity(record,facts);

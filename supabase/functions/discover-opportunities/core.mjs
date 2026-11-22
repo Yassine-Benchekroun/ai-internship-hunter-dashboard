@@ -4,8 +4,18 @@ import { parseHTML } from 'linkedom/worker';
 
 const text = (value, max = 12000) => typeof value === 'string' ? portfolioText(value).replace(/# END SECTION/g, '').replace(/\s+/g, ' ').trim().slice(0, max) : '';
 const list = value => Array.isArray(value) ? value : value == null ? [] : [value];
-const countryNames = { US: 'United States', USA: 'United States', FR: 'France', DE: 'Germany', ES: 'Spain', AE: 'United Arab Emirates', SA: 'Saudi Arabia', CN: 'China', JP: 'Japan' };
+const countryNames = { US: 'United States', USA: 'United States', FR: 'France', DE: 'Germany', ES: 'Spain', AE: 'United Arab Emirates', SA: 'Saudi Arabia', CN: 'China', JP: 'Japan', MA: 'Morocco', MAR: 'Morocco', MAROC: 'Morocco', MOROCCO: 'Morocco', 'المغرب': 'Morocco' };
 export const countryName = value => countryNames[text(value).toUpperCase()] ?? text(value);
+export const isInternshipTitle = title => /\b(?:intern(?:ship)?|stages?|stagiaires?|pfe|projet de fin d['’]études?|praktikum|research assistant|research opportunity|visiting student)\b/i.test(title);
+
+function postingAddress(address) {
+  if (address.addressCountry != null || typeof address.streetAddress !== 'string') return address;
+  // Some ATSs emit only a formatted city/country pair. Require a known
+  // Moroccan city before treating MA as a country code, since US state codes
+  // can also appear in this field.
+  const pair = /^(Casablanca|Rabat|Ben Guerir|Benguerir|Marrakech|Tanger|F[eè]s|Agadir|Sal[eé]|T[eé]touan|Oujda)\s*,\s*(?:MA|MAR|Maroc|Morocco)$/i.exec(address.streetAddress.trim());
+  return pair ? { ...address, addressCountry: 'Morocco', addressLocality: address.addressLocality ?? pair[1] } : address;
+}
 export function canonicalUrl(value) {
   try {
     const url = new URL(value);
@@ -51,13 +61,13 @@ export function jsonLdJobs(html) {
 }
 export function verifyJob(job, sourceUrl, settings, now = new Date()) {
   if (!job || typeof job !== 'object' || !list(job['@type']).includes('JobPosting')) return { rejected: 'invalid_posting_data' };
-  const organization = text(job.hiringOrganization?.name, 250);
+  const organization = text(typeof job.hiringOrganization === 'string' ? job.hiringOrganization : job.hiringOrganization?.name, 250);
   const position = text(job.title, 250);
   const description = text(job.description);
   const source = canonicalUrl(sourceUrl);
   if (!organization || !position || !description || !source) return { rejected: 'missing_verified_fields' };
-  const domain = /\b(?:artificial intelligence|machine learning|deep learning|computer vision|data science|AI|ML|NLP|robotics|software|research scientist|intelligence artificielle|vision par ordinateur|aprendizaje automático|künstliche intelligenz)\b|人工智能|机器学习|機械学習|コンピュータビジョン/i;
-  const isIntern = /\b(?:intern(?:ship)?|stage|stagiaire|praktikum|research assistant|research opportunity|visiting student)\b/i.test(position);
+  const domain = /\b(?:artificial intelligence|machine learning|deep learning|computer vision|data science|AI|IA|ML|NLP|robotics|software|research scientist|intelligence artificielle|vision par ordinateur|science des données|génie informatique|aprendizaje automático|künstliche intelligenz)\b|人工智能|机器学习|機械学習|コンピュータビジョン/i;
+  const isIntern = isInternshipTitle(position);
   const isResearch = /\b(?:research|lab|university)\b/i.test(position);
   const nonTechnicalTitle = /\b(?:accounting|sales|marketing|administrative|change management|communications|content manager|mechanical technician|MBA|operations planning|business development|finance|legal|public policy|human resources|talent acquisition|procurement|event management|investment analyst|investment services|sector analyst|equity support|IT support|technical support|recruitment|enablement|strategic program management|hardware engineer|safety reporting|service designer|UX designer|antenna design|mechanical engineering|satellite programs|thermal\s*&\s*manufacturing)\b/i;
   const unrelatedRole = nonTechnicalTitle.test(position);
@@ -65,7 +75,7 @@ export function verifyJob(job, sourceUrl, settings, now = new Date()) {
   const opportunityType = isResearch ? 'research' : 'internship';
   if (!settings.opportunity_types?.includes(opportunityType)) return { rejected: 'type_not_configured' };
   const locations = list(job.jobLocation).filter(item => item && typeof item === 'object')
-    .map(item => item.address).filter(address => address && typeof address === 'object');
+    .map(item => item.address).filter(address => address && typeof address === 'object').map(postingAddress);
   const countries = locations.map(item => countryName(typeof item.addressCountry === 'object' ? item.addressCountry?.name : item.addressCountry)).filter(Boolean);
   const country = countries.find(item => settings.target_countries?.some(c => c.toLowerCase() === item.toLowerCase()));
   // A remote flag alone does not establish worldwide eligibility.
